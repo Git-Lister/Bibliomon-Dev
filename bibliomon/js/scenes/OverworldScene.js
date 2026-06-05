@@ -12,16 +12,21 @@ class OverworldScene extends Phaser.Scene {
             this.gameState.backpack.push(createBookInstance('norton_anthology_base', 5));
         }
 
-        // ── Dynamically find entrance if tile coordinates are missing or zero ──
+        // ── Dynamically find entrance centre ──
         const p = this.gameState.player;
         if (p.tileX === undefined || p.tileY === undefined || (p.tileX === 0 && p.tileY === 0)) {
             const groundMap = GROUND_MAP;
-            for (let c = 0; c < groundMap[29].length; c++) {
-                if (groundMap[29][c] === '.') {
-                    p.tileX = c;
-                    p.tileY = 29;
-                    break;
+            const row = 29;
+            let firstDot = -1, lastDot = -1;
+            for (let c = 0; c < groundMap[row].length; c++) {
+                if (groundMap[row][c] === '.') {
+                    if (firstDot === -1) firstDot = c;
+                    lastDot = c;
                 }
+            }
+            if (firstDot !== -1) {
+                p.tileX = Math.floor((firstDot + lastDot) / 2); // centre of entrance
+                p.tileY = row;
             }
         }
 
@@ -65,43 +70,48 @@ class OverworldScene extends Phaser.Scene {
     buildMap() {
         const mapData = this.gameState.currentMap === 'ground' ? GROUND_MAP : FLOOR1_MAP;
 
+        // Clear previous tiles if scene restarts
         if (this.allTiles) this.allTiles.clear(true, true);
         this.allTiles = this.add.group();
 
+        const tileIndexMap = window.tileIndexMap;
         for (let r = 0; r < mapData.length; r++) {
             for (let c = 0; c < mapData[r].length; c++) {
-                const tile = mapData[r][c];
-                if (tile === '.') continue;
-                let texKey = tile;
-                if (tile.startsWith('P')) texKey = tile;
-                if (this.textures.exists(texKey)) {
-                    const img = this.add.image(c * 16 + 8, r * 16 + 8, texKey);
-                    img.setOrigin(0.5);
-                    this.allTiles.add(img);
-                }
-            }
-        }
+                let tileChar = mapData[r][c];
+                if (tileChar === '.') continue; // floor is background colour
 
-        // Barrier zone (collision handled via manual tile checks, not physics)
-        this.barrier = null;
-        if (this.gameState.currentMap === 'ground' && !this.gameState.puzzleSolved) {
-            // We'll check barrier tiles manually in movement logic.
+                // Map spin tiles to their correct key (P> etc.)
+                if (tileChar.startsWith('P') && tileChar.length === 2) {
+                    tileChar = tileChar; // already correct
+                } else if (tileChar === 'P') {
+                    // not used
+                }
+
+                const tileIndex = tileIndexMap[tileChar];
+                if (tileIndex === undefined) continue;
+
+                const sprite = this.add.sprite(c * 16 + 8, r * 16 + 8, 'tileset', tileIndex);
+                sprite.setOrigin(0.5);
+                this.allTiles.add(sprite);
+            }
         }
     }
 
-    // ── Player & camera ─────────────────────────────────────────────────────
     createPlayer() {
         const startCol = this.gameState.player.tileX || 19;
         const startRow = this.gameState.player.tileY || 29;
 
-        // Player sprite without physics – we manage movement manually
-        this.player = this.add.sprite(startCol * 16 + 8, startRow * 16 + 8, 'player');
+        this.player = this.add.sprite(startCol * 16 + 8, startRow * 16 + 8, 'player_walk', 0);
         this.player.setOrigin(0.5);
         this.player.setDepth(2);
 
-        this.cameras.main.startFollow(this.player, true, 1, 1);   // rigid follow, no smoothing
+        // Play idle animation (standing still = first frame of down direction)
+        this.player.anims.play('walk_down');
+        this.player.anims.pause(); // we'll resume on movement
+
+        this.cameras.main.startFollow(this.player, true, 1, 1);
         this.cameras.main.setBounds(0, 0, 40 * 16, 30 * 16);
-        this.cameras.main.setRoundPixels(true);                     // amendment 3: pixel‑perfect camera
+        this.cameras.main.setRoundPixels(true);
     }
 
     setupInput() {
@@ -148,6 +158,7 @@ class OverworldScene extends Phaser.Scene {
         }
 
         // Walk: linear tween, constant speed, no easing
+        this.player.anims.play(`walk_${this.gameState.player.facing}`);
         p.isMoving = true;
         this.tweens.add({
             targets: this.player,
@@ -159,6 +170,7 @@ class OverworldScene extends Phaser.Scene {
                 p.tileX = nextCol;
                 p.tileY = nextRow;
                 p.isMoving = false;
+                this.player.anims.pause();
                 this.checkTileAfterMove(nextCol, nextRow, tile);
             }
         });

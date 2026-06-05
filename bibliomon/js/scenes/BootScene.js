@@ -4,70 +4,174 @@ class BootScene extends Phaser.Scene {
     }
 
     preload() {
-        // Generate textures programmatically (no external files needed)
-        this.createTileTextures();
-    }
-
-    createTileTextures() {
-        const tileSize = 16;
-
-        // Wall
-        this.createRectTexture('W', tileSize, tileSize, '#27272a', '#18181b');
-        // Floor
-        this.createRectTexture('.', tileSize, tileSize, '#fafaf9');
-        // Help Desk
-        this.createRectTexture('H', tileSize, tileSize, '#1e3a8a');
-        // Kitchenette
-        this.createRectTexture('K', tileSize, tileSize, '#065f46');
-        // Bookshelf
-        this.createRectTexture('S', tileSize, tileSize, '#7c2d12');
-        // Study door
-        this.createRectTexture('D', tileSize, tileSize, '#78350f');
-        // Trainer
-        this.createRectTexture('T', tileSize, tileSize, '#fafaf9');
-        // Vending
-        this.createRectTexture('V', tileSize, tileSize, '#6b21a8');
-        // Cafe
-        this.createRectTexture('C', tileSize, tileSize, '#9a3412');
-        // Staircase
-        this.createRectTexture('E', tileSize, tileSize, '#71717a');
-        // Terminal
-        this.createRectTexture('L', tileSize, tileSize, '#d4a574');
-        // Barrier (locked)
-        this.createRectTexture('B', tileSize, tileSize, '#7f1d1d');
-        // Goal
-        this.createRectTexture('X', tileSize, tileSize, '#fafaf9');
-        // Gym
-        this.createRectTexture('G', tileSize, tileSize, '#4a1e1e');
-        // Spin tiles (will draw arrows dynamically, but base)
-        this.createRectTexture('P>', tileSize, tileSize, '#0ea5e9');
-        this.createRectTexture('P<', tileSize, tileSize, '#0ea5e9');
-        this.createRectTexture('P^', tileSize, tileSize, '#0ea5e9');
-        this.createRectTexture('Pv', tileSize, tileSize, '#0ea5e9');
-
-        // Player sprite (simple blue circle with cap)
-        const playerGraphics = this.add.graphics();
-        playerGraphics.fillStyle(0x2563eb);
-        playerGraphics.fillCircle(8, 10, 5.5);
-        playerGraphics.fillStyle(0xfed7aa);
-        playerGraphics.fillCircle(8, 6, 3.5);
-        playerGraphics.generateTexture('player', 16, 16);
-        playerGraphics.destroy();
-    }
-
-    createRectTexture(key, w, h, fillColor, strokeColor = null) {
-        const gfx = this.add.graphics();
-        gfx.fillStyle(Phaser.Display.Color.HexStringToColor(fillColor).color);
-        gfx.fillRect(0, 0, w, h);
-        if (strokeColor) {
-            gfx.lineStyle(1, Phaser.Display.Color.HexStringToColor(strokeColor).color, 1);
-            gfx.strokeRect(0, 0, w, h);
-        }
-        gfx.generateTexture(key, w, h);
-        gfx.destroy();
+        // Nothing to load externally – we generate assets in create()
     }
 
     create() {
+        this.generateTileset();
+        this.generatePlayerSpritesheet();
         this.scene.start('Overworld');
+    }
+
+    // ── Generate a 16×16 tileset with one tile per map character ──
+    generateTileset() {
+        const tileSize = 16;
+        const cols = 16;  // enough columns for all our tile types
+        const rows = 8;
+        const canvas = document.createElement('canvas');
+        canvas.width = cols * tileSize;
+        canvas.height = rows * tileSize;
+        const ctx = canvas.getContext('2d');
+
+        // Define tile mapping: index -> map char
+        const tileDefs = [
+            { char: '.', color: '#fafaf9', detail: 'dot' },
+            { char: 'W', color: '#27272a', stroke: '#18181b' },
+            { char: 'H', color: '#1e3a8a' },
+            { char: 'K', color: '#065f46' },
+            { char: 'S', color: '#7c2d12', detail: 'books' },
+            { char: 'D', color: '#78350f' },
+            { char: 'T', color: '#fafaf9', detail: 'trainer' },
+            { char: 'V', color: '#6b21a8' },
+            { char: 'C', color: '#9a3412' },
+            { char: 'E', color: '#71717a' },
+            { char: 'L', color: '#d4a574' },
+            { char: 'B', color: '#7f1d1d' },
+            { char: 'X', color: '#fafaf9', detail: 'goal' },
+            { char: 'G', color: '#4a1e1e', detail: 'gym' },
+            { char: 'P>', color: '#0ea5e9' },
+            { char: 'P<', color: '#0ea5e9' },
+            { char: 'P^', color: '#0ea5e9' },
+            { char: 'Pv', color: '#0ea5e9' }
+        ];
+
+        tileDefs.forEach((def, index) => {
+            const col = index % cols;
+            const row = Math.floor(index / cols);
+            const x = col * tileSize;
+            const y = row * tileSize;
+
+            // Fill base colour
+            ctx.fillStyle = def.color;
+            ctx.fillRect(x, y, tileSize, tileSize);
+
+            // Add detail
+            if (def.char === 'W' && def.stroke) {
+                ctx.strokeStyle = def.stroke;
+                ctx.lineWidth = 1;
+                ctx.strokeRect(x, y, tileSize, tileSize);
+            } else if (def.detail === 'dot') {
+                ctx.fillStyle = '#e7e5e4';
+                ctx.fillRect(x + 4, y + 4, 1, 1);
+            } else if (def.detail === 'books') {
+                const colors = ['#c0392b', '#2980b9', '#27ae60', '#16a085'];
+                colors.forEach((c, i) => {
+                    ctx.fillStyle = c;
+                    ctx.fillRect(x + 1 + i * 4, y, 2, 10);
+                });
+            } else if (def.detail === 'trainer') {
+                ctx.fillStyle = '#dc2626';
+                ctx.fillRect(x + 4, y + 4, 8, 8);
+            } else if (def.detail === 'goal') {
+                ctx.fillStyle = '#eab308';
+                ctx.beginPath();
+                ctx.arc(x + 8, y + 8, 4, 0, Math.PI * 2);
+                ctx.fill();
+            } else if (def.detail === 'gym') {
+                ctx.fillStyle = '#fbbf24';
+                ctx.font = 'bold 10px monospace';
+                ctx.fillText('GYM', x + 2, y + 13);
+            } else if (def.char.startsWith('P')) {
+                // Draw arrow
+                ctx.strokeStyle = '#fff';
+                ctx.lineWidth = 1.5;
+                ctx.beginPath();
+                if (def.char === 'P>') { ctx.moveTo(x + 3, y + 8); ctx.lineTo(x + 13, y + 8); ctx.lineTo(x + 9, y + 4); ctx.moveTo(x + 13, y + 8); ctx.lineTo(x + 9, y + 12); }
+                if (def.char === 'Pv') { ctx.moveTo(x + 8, y + 3); ctx.lineTo(x + 8, y + 13); ctx.lineTo(x + 4, y + 9); ctx.moveTo(x + 8, y + 13); ctx.lineTo(x + 12, y + 9); }
+                if (def.char === 'P<') { ctx.moveTo(x + 13, y + 8); ctx.lineTo(x + 3, y + 8); ctx.lineTo(x + 7, y + 4); ctx.moveTo(x + 3, y + 8); ctx.lineTo(x + 7, y + 12); }
+                if (def.char === 'P^') { ctx.moveTo(x + 8, y + 13); ctx.lineTo(x + 8, y + 3); ctx.lineTo(x + 4, y + 7); ctx.moveTo(x + 8, y + 3); ctx.lineTo(x + 12, y + 7); }
+                ctx.stroke();
+            }
+
+            // Store the tile index mapping
+            if (!this.tileIndexMap) this.tileIndexMap = {};
+            this.tileIndexMap[def.char] = index;
+        });
+
+        // Add to Phaser texture manager as a spritesheet
+        this.textures.addSpriteSheet('tileset', canvas, {
+            frameWidth: tileSize,
+            frameHeight: tileSize
+        });
+
+        // Make mapping available globally
+        window.tileIndexMap = this.tileIndexMap;
+    }
+
+    // ── Generate a 4-directional player walking spritesheet ──
+    generatePlayerSpritesheet() {
+        const frameWidth = 16;
+        const frameHeight = 16;
+        const directions = ['down', 'left', 'right', 'up'];
+        const framesPerDir = 3;
+        const totalFrames = directions.length * framesPerDir;
+        const canvas = document.createElement('canvas');
+        canvas.width = frameWidth * totalFrames;
+        canvas.height = frameHeight;
+        const ctx = canvas.getContext('2d');
+
+        directions.forEach((dir, dIdx) => {
+            for (let f = 0; f < framesPerDir; f++) {
+                const frameIdx = dIdx * framesPerDir + f;
+                const x = frameIdx * frameWidth;
+                const y = 0;
+
+                // Base body (blue circle)
+                ctx.fillStyle = '#2563eb';
+                ctx.beginPath();
+                ctx.arc(x + 8, y + 10, 5, 0, Math.PI * 2);
+                ctx.fill();
+
+                // Cap (graduation cap)
+                ctx.fillStyle = '#ffffff';
+                ctx.fillRect(x + 3, y + 2, 10, 2);
+                ctx.fillRect(x + 7, y + 1, 2, 4);
+
+                // Simple direction indicator (small offset for "step" frames)
+                const offsets = [
+                    { dx: 0, dy: 0 },  // frame 1: neutral
+                    { dx: 1, dy: 0 },  // frame 2: shift right
+                    { dx: -1, dy: 0 }  // frame 3: shift left
+                ];
+                const off = offsets[f];
+                // Slightly move the cap or body? We'll keep it simple for now.
+                // The spritesheet will just have identical frames, but we'll still use frame cycling.
+                // For real, you'd draw different leg positions; here we'll just vary the cap slightly.
+                if (f === 1) {
+                    ctx.fillStyle = '#2563eb';
+                    ctx.fillRect(x + 6, y + 12, 2, 2); // "foot"
+                } else if (f === 2) {
+                    ctx.fillStyle = '#2563eb';
+                    ctx.fillRect(x + 10, y + 12, 2, 2);
+                }
+            }
+        });
+
+        this.textures.addSpriteSheet('player_walk', canvas, {
+            frameWidth: frameWidth,
+            frameHeight: frameHeight
+        });
+
+        // Create animations
+        directions.forEach((dir, dIdx) => {
+            const start = dIdx * framesPerDir;
+            const end = start + framesPerDir - 1;
+            this.anims.create({
+                key: `walk_${dir}`,
+                frames: this.anims.generateFrameNumbers('player_walk', { start, end }),
+                frameRate: 8,
+                repeat: -1
+            });
+        });
     }
 }
