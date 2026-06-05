@@ -10,8 +10,72 @@ class BootScene extends Phaser.Scene {
     create() {
         this.generateTileset();
         this.generatePlayerSpritesheet();
+        this.generateBookSprites();
         this.scene.start('Overworld');
     }
+
+    generateBookSprites() {
+    const types = ['arts_humanities', 'business_law', 'science_engineering', 'health_education'];
+    const colors = {
+        arts_humanities: '#c0392b',
+        business_law: '#2980b9',
+        science_engineering: '#16a085',
+        health_education: '#27ae60'
+    };
+    const frameWidth = 48, frameHeight = 48;
+
+    // Front sprites (opponent) – one per type
+    types.forEach(type => {
+        const canvas = document.createElement('canvas');
+        canvas.width = frameWidth; canvas.height = frameHeight;
+        const ctx = canvas.getContext('2d');
+        // Book shape
+        ctx.fillStyle = colors[type];
+        ctx.fillRect(8, 4, 32, 40);
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(8, 4, 32, 40);
+        // Spine
+        ctx.fillStyle = '#333333';
+        ctx.fillRect(4, 8, 6, 32);
+        // Face (simple)
+        ctx.fillStyle = '#ffffff';
+        ctx.beginPath();
+        ctx.arc(24, 20, 6, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#000000';
+        ctx.beginPath();
+        ctx.arc(22, 19, 1.5, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.arc(28, 19, 1.5, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = '#000000';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.arc(24, 23, 2, 0, Math.PI);
+        ctx.stroke();
+
+        this.textures.addImage(`book_front_${type}`, canvas);
+    });
+
+    // Back sprite (player's book) – one generic, or per type? We'll do one generic for now.
+    const backCanvas = document.createElement('canvas');
+    backCanvas.width = frameWidth; backCanvas.height = frameHeight;
+    const bCtx = backCanvas.getContext('2d');
+    bCtx.fillStyle = '#8B4513';
+    bCtx.fillRect(8, 4, 32, 40);
+    bCtx.strokeStyle = '#ffffff';
+    bCtx.lineWidth = 2;
+    bCtx.strokeRect(8, 4, 32, 40);
+    bCtx.fillStyle = '#333';
+    bCtx.fillRect(38, 8, 6, 32); // spine on the right
+    // Small face on back? No, just a back view – maybe a graduation cap?
+    bCtx.fillStyle = '#ffffff';
+    bCtx.fillRect(14, 2, 20, 4); // cap
+    bCtx.fillRect(20, 0, 8, 4);
+    this.textures.addImage('book_back', backCanvas);
+}
 
     // ── Generate a 16×16 tileset with one tile per map character ──
     generateTileset() {
