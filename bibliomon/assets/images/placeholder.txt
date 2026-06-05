@@ -1,0 +1,1 @@
+Place images here (spritesheets, tilesets). Replace with AI-generated pixel art.
