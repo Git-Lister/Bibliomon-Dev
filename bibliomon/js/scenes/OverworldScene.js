@@ -6,17 +6,18 @@ class OverworldScene extends Phaser.Scene {
     create() {
         this.cameras.main.setBackgroundColor('#1a1a1a');
         this.gameState = window.gameState;
-        // Ensure player starts at the library entrance if no saved position
-        if (this.gameState.playerPos.x === 0 && this.gameState.playerPos.y === 0) {
-            const groundMap = GROUND_MAP;
-            for (let c = 0; c < groundMap[29].length; c++) {
-                if (groundMap[29][c] === '.') {
-                    this.gameState.playerPos = { x: c, y: 29 };
-                    break;
-                }
-            }
+
+        // ── Ensure player starts at the library entrance if no saved position ──
+        if (!this.gameState.playerPos || (this.gameState.playerPos.x === 0 && this.gameState.playerPos.y === 0)) {
+            this.resetToEntrance();
         }
-        // Initialise trainer map only once
+
+        // ── Give the player a starter book if the backpack is empty ──
+        if (this.gameState.backpack.length === 0) {
+            this.gameState.backpack.push(createBookInstance('norton_anthology_base', 5));
+        }
+
+        // ── Initialise trainer map ──
         if (!this.gameState.trainerMap || Object.keys(this.gameState.trainerMap).length === 0) {
             this.gameState.trainerMap = {};
             const groundData = GROUND_MAP;
@@ -30,32 +31,59 @@ class OverworldScene extends Phaser.Scene {
                 }
             }
         }
+
+        this.isMoving = false;               // prevent multiple movement tweens
         this.buildMap();
         this.createPlayer();
         this.setupInput();
 
-        // Simple save stub – replace with real implementation later
-        window.saveGameData = () => {
-            console.log('Game saved (stub)');
-        };
+        // Optional debug text – remove when everything works
+        this.debugText = this.add.text(10, 10, '', {
+            fontFamily: 'monospace', fontSize: '10px', fill: '#0f0'
+        }).setScrollFactor(0).setDepth(100);
     }
 
+    // ── Helpers ──────────────────────────────────────────────────────────────
+    resetToEntrance() {
+        const groundMap = GROUND_MAP;
+        let entranceCol = 19; // fallback
+        for (let c = 0; c < groundMap[29].length; c++) {
+            if (groundMap[29][c] === '.') {
+                entranceCol = c;
+                break;
+            }
+        }
+        this.gameState.playerPos = { x: entranceCol, y: 29 };
+        this.gameState.currentMap = 'ground';
+        this.gameState.puzzleSolved = false;
+    }
+
+    getTileAt(col, row) {
+        const map = this.gameState.currentMap === 'ground' ? GROUND_MAP : FLOOR1_MAP;
+        if (col < 0 || col >= 40 || row < 0 || row >= 30) return 'W';
+        const line = map[row];
+        if (line[col] === 'P' && col + 1 < line.length && '>v<^'.includes(line[col + 1])) {
+            return 'P' + line[col + 1];
+        }
+        return line[col];
+    }
+
+    // ── Map building ─────────────────────────────────────────────────────────
     buildMap() {
         const mapData = this.gameState.currentMap === 'ground' ? GROUND_MAP : FLOOR1_MAP;
 
-        // Destroy old tiles if scene restarts
         if (this.allTiles) this.allTiles.clear(true, true);
         this.allTiles = this.add.group();
 
+        // Draw tile sprites
         for (let r = 0; r < mapData.length; r++) {
             for (let c = 0; c < mapData[r].length; c++) {
                 const tile = mapData[r][c];
-                if (tile === '.') continue; // floor is the background colour
+                if (tile === '.') continue;
 
                 let texKey = tile;
-                if (tile.startsWith('P')) texKey = tile; // P>, P<, etc.
+                if (tile.startsWith('P')) texKey = tile;
 
-                // Only add image if the texture exists
                 if (this.textures.exists(texKey)) {
                     const img = this.add.image(c * 16 + 8, r * 16 + 8, texKey);
                     img.setOrigin(0.5);
@@ -64,7 +92,7 @@ class OverworldScene extends Phaser.Scene {
             }
         }
 
-        // Add interactive zones for trainers and bookshelves
+        // Interactive zones
         this.trainers = this.add.group();
         this.bookshelves = this.add.group();
 
@@ -94,7 +122,7 @@ class OverworldScene extends Phaser.Scene {
             }
         }
 
-        // Barrier collision (if puzzle not solved)
+        // Barrier
         if (this.gameState.currentMap === 'ground' && !this.gameState.puzzleSolved) {
             for (let r = 0; r < mapData.length; r++) {
                 for (let c = 0; c < mapData[r].length; c++) {
@@ -111,9 +139,10 @@ class OverworldScene extends Phaser.Scene {
         }
     }
 
+    // ── Player & input ───────────────────────────────────────────────────────
     createPlayer() {
-        const startX = this.gameState.playerPos.x * 16 + 8 || 20 * 16 + 8;
-        const startY = this.gameState.playerPos.y * 16 + 8 || 29 * 16 + 8;
+        const startX = (this.gameState.playerPos.x * 16) + 8;
+        const startY = (this.gameState.playerPos.y * 16) + 8;
 
         this.player = this.physics.add.sprite(startX, startY, 'player');
         this.player.setOrigin(0.5);
@@ -146,14 +175,90 @@ class OverworldScene extends Phaser.Scene {
         this.moveDelay = 140;
     }
 
-    getTileAt(col, row) {
-        const map = this.gameState.currentMap === 'ground' ? GROUND_MAP : FLOOR1_MAP;
-        if (col < 0 || col >= 40 || row < 0 || row >= 30) return 'W';
-        const line = map[row];
-        if (line[col] === 'P' && col + 1 < line.length && '>v<^'.includes(line[col+1])) {
-            return 'P' + line[col+1];
+    // ── Movement & interaction ───────────────────────────────────────────────
+    update(time, delta) {
+        if (this.gameState.mode !== 'walk' || this.gameState.inputLocked) {
+            return;
         }
-        return line[col];
+
+        const left = this.cursors.left.isDown || this.wasd.left.isDown;
+        const right = this.cursors.right.isDown || this.wasd.right.isDown;
+        const up = this.cursors.up.isDown || this.wasd.up.isDown;
+        const down = this.cursors.down.isDown || this.wasd.down.isDown;
+
+        if (time - this.lastMoveTime > this.moveDelay && !this.isMoving) {
+            let dx = 0, dy = 0;
+            if (up) { dy = -1; this.gameState.facing = 'up'; }
+            else if (down) { dy = 1; this.gameState.facing = 'down'; }
+            else if (left) { dx = -1; this.gameState.facing = 'left'; }
+            else if (right) { dx = 1; this.gameState.facing = 'right'; }
+
+            if (dx !== 0 || dy !== 0) {
+                const col = Math.round((this.player.x - 8) / 16) + dx;
+                const row = Math.round((this.player.y - 8) / 16) + dy;
+                const tile = this.getTileAt(col, row);
+
+                if (tile === 'W') return;
+                if (tile === 'B' && !this.gameState.puzzleSolved) {
+                    this.showMessage('The barrier is locked. Solve the puzzle first.');
+                    return;
+                }
+                if (tile.startsWith('P')) {
+                    this.startSpinTile(col, row, tile);
+                    this.lastMoveTime = time;
+                    return;
+                }
+                if (tile === 'E') {
+                    this.handleStairs();
+                    return;
+                }
+
+                // Valid walk – start movement tween
+                this.isMoving = true;
+                this.tweens.add({
+                    targets: this.player,
+                    x: col * 16 + 8,
+                    y: row * 16 + 8,
+                    duration: 100,
+                    onComplete: () => {
+                        this.gameState.playerPos.x = col;
+                        this.gameState.playerPos.y = row;
+                        this.isMoving = false;
+                    }
+                });
+                this.lastMoveTime = time;
+            }
+        }
+
+        // Interaction keys
+        if (Phaser.Input.Keyboard.JustDown(this.spaceKey) || Phaser.Input.Keyboard.JustDown(this.enterKey)) {
+            this.handleInteraction();
+        }
+        if (Phaser.Input.Keyboard.JustDown(this.escKey)) {
+            this.scene.launch('Menu', { mode: 'pause' });
+            this.scene.pause();
+        }
+
+        // Debug info
+        if (this.debugText) {
+            const cx = Math.round((this.player.x - 8) / 16);
+            const cy = Math.round((this.player.y - 8) / 16);
+            this.debugText.setText(`Tile: (${cx},${cy}) ${this.getTileAt(cx, cy)}  Facing: ${this.gameState.facing}`);
+        }
+    }
+
+    handleStairs() {
+        if (this.gameState.currentMap === 'ground' && this.gameState.puzzleSolved) {
+            this.gameState.currentMap = 'floor1';
+            this.gameState.playerPos = { x: 37, y: 3 };
+            this.scene.restart();
+        } else if (this.gameState.currentMap === 'floor1') {
+            this.gameState.currentMap = 'ground';
+            this.gameState.playerPos = { x: 35, y: 3 };
+            this.scene.restart();
+        } else {
+            this.showMessage('Solve the puzzle first.');
+        }
     }
 
     onBookshelfStep(player, zone) {
@@ -185,6 +290,7 @@ class OverworldScene extends Phaser.Scene {
         this.scene.pause();
     }
 
+    // ── Spin‑tile puzzle ─────────────────────────────────────────────────────
     startSpinTile(col, row, tile) {
         this.gameState.inputLocked = true;
         let currentCol = col, currentRow = row, currentTile = tile;
@@ -211,9 +317,8 @@ class OverworldScene extends Phaser.Scene {
                         this.gameState.puzzleSolved = true;
                         this.gameState.inputLocked = false;
                         this.showMessage('The directional study carrels align! A lock clicks open nearby.');
-                        window.saveGameData();
+                        saveGameData();
                         if (this.barrier) this.barrier.destroy();
-                        // Re-draw barrier tile? For now, just remove collision.
                     } else if (nextTile.startsWith('P')) {
                         currentCol = nextCol;
                         currentRow = nextRow;
@@ -229,21 +334,22 @@ class OverworldScene extends Phaser.Scene {
     }
 
     getSpinDirection(tile) {
-        switch(tile) {
-            case 'P>': return {x:1,y:0};
-            case 'P<': return {x:-1,y:0};
-            case 'P^': return {x:0,y:-1};
-            case 'Pv': return {x:0,y:1};
+        switch (tile) {
+            case 'P>': return { x: 1, y: 0 };
+            case 'P<': return { x: -1, y: 0 };
+            case 'P^': return { x: 0, y: -1 };
+            case 'Pv': return { x: 0, y: 1 };
             default: return null;
         }
     }
 
+    // ── Tile interaction ─────────────────────────────────────────────────────
     handleInteraction() {
         if (this.gameState.mode !== 'walk') return;
         const col = Math.round((this.player.x - 8) / 16);
         const row = Math.round((this.player.y - 8) / 16);
         let tx = col, ty = row;
-        switch(this.gameState.facing) {
+        switch (this.gameState.facing) {
             case 'up': ty--; break;
             case 'down': ty++; break;
             case 'left': tx--; break;
@@ -252,25 +358,23 @@ class OverworldScene extends Phaser.Scene {
         const tile = this.getTileAt(tx, ty);
         if (tile === 'H') {
             this.gameState.backpack.forEach(b => b.currentHP = b.maxHP);
-            this.showMessage('All books restored. Opening Library Account...');
             this.scene.launch('Menu', { mode: 'account' });
             this.scene.pause();
         } else if (tile === 'K') {
             this.gameState.backpack.forEach(b => b.currentHP = b.maxHP);
-            window.saveGameData();
+            saveGameData();
             this.showMessage('Kitchenette break! Party healed and game saved.');
         } else if (tile === 'V') {
             let slot = this.gameState.items.find(i => i.itemId === 'potion');
-            if (!slot) { slot = { itemId:'potion', qty:0 }; this.gameState.items.push(slot); }
+            if (!slot) { slot = { itemId: 'potion', qty: 0 }; this.gameState.items.push(slot); }
             if (slot.qty < 20) { slot.qty++; this.showMessage('Obtained a Potion!'); }
             else { this.showMessage('Inventory full for Potions.'); }
         } else if (tile === 'C') {
             let slot = this.gameState.items.find(i => i.itemId === 'super_potion');
-            if (!slot) { slot = { itemId:'super_potion', qty:0 }; this.gameState.items.push(slot); }
+            if (!slot) { slot = { itemId: 'super_potion', qty: 0 }; this.gameState.items.push(slot); }
             if (slot.qty < 20) { slot.qty++; this.showMessage('Obtained a Super Potion!'); }
             else { this.showMessage('Inventory full for Super Potions.'); }
         } else if (tile === 'L') {
-            this.showMessage('Opening Library Account...');
             this.scene.launch('Menu', { mode: 'account' });
             this.scene.pause();
         } else if (tile === 'G') {
@@ -290,76 +394,5 @@ class OverworldScene extends Phaser.Scene {
 
     startGymChallenge() {
         console.log('Gym challenge started.');
-    }
-
-    update(time, delta) {
-        if (this.gameState.mode !== 'walk' || this.gameState.inputLocked) {
-            this.player.setVelocity(0);
-            return;
-        }
-
-        const left = this.cursors.left.isDown || this.wasd.left.isDown;
-        const right = this.cursors.right.isDown || this.wasd.right.isDown;
-        const up = this.cursors.up.isDown || this.wasd.up.isDown;
-        const down = this.cursors.down.isDown || this.wasd.down.isDown;
-
-        if (time - this.lastMoveTime > this.moveDelay) {
-            let dx = 0, dy = 0;
-            if (up) { dy = -1; this.gameState.facing = 'up'; }
-            else if (down) { dy = 1; this.gameState.facing = 'down'; }
-            else if (left) { dx = -1; this.gameState.facing = 'left'; }
-            else if (right) { dx = 1; this.gameState.facing = 'right'; }
-
-            if (dx !== 0 || dy !== 0) {
-                const col = Math.round((this.player.x - 8) / 16) + dx;
-                const row = Math.round((this.player.y - 8) / 16) + dy;
-                const tile = this.getTileAt(col, row);
-
-                if (tile === 'W') return;
-                if (tile === 'B' && !this.gameState.puzzleSolved) {
-                    this.showMessage('The barrier is locked. Solve the puzzle first.');
-                    return;
-                }
-                if (tile.startsWith('P')) {
-                    this.startSpinTile(col, row, tile);
-                    this.lastMoveTime = time;
-                    return;
-                }
-                if (tile === 'E') {
-                    if (this.gameState.currentMap === 'ground' && this.gameState.puzzleSolved) {
-                        this.gameState.currentMap = 'floor1';
-                        this.gameState.playerPos = { x: 37, y: 3 };
-                        this.scene.restart();
-                    } else if (this.gameState.currentMap === 'floor1') {
-                        this.gameState.currentMap = 'ground';
-                        this.gameState.playerPos = { x: 35, y: 3 };
-                        this.scene.restart();
-                    } else {
-                        this.showMessage('Solve the puzzle first.');
-                    }
-                    return;
-                }
-
-                this.tweens.add({
-                    targets: this.player,
-                    x: col * 16 + 8,
-                    y: row * 16 + 8,
-                    duration: 100,
-                    onComplete: () => {
-                        this.gameState.playerPos.x = col;
-                        this.gameState.playerPos.y = row;
-                    }
-                });
-                this.lastMoveTime = time;
-            }
-        }
-
-        if (Phaser.Input.Keyboard.JustDown(this.spaceKey) || Phaser.Input.Keyboard.JustDown(this.enterKey)) {
-            this.handleInteraction();
-        }
-        if (Phaser.Input.Keyboard.JustDown(this.escKey)) {
-            this.scene.launch('Menu', { mode: 'pause' });
-            this.scene.pause();
-        }
     }
 }
