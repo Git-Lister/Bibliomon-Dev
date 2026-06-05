@@ -8,8 +8,8 @@ const config = {
     physics: {
         default: 'arcade',
         arcade: {
-            gravity: { y: 0 },       // top-down RPG – no gravity needed
-            debug: false              // set to true if you need to see hitboxes
+            gravity: { y: 0 },
+            debug: false
         }
     },
     scene: [BootScene, OverworldScene, BattleScene, MenuScene]
@@ -19,7 +19,11 @@ window.saveGameData = function() {
     const state = window.gameState;
     const data = {
         currentMap: state.currentMap,
-        playerPos: state.playerPos,
+        player: {
+            tileX: state.player.tileX,
+            tileY: state.player.tileY,
+            facing: state.player.facing
+        },
         backpack: state.backpack,
         libraryAccount: state.libraryAccount,
         items: state.items,
@@ -32,14 +36,42 @@ window.saveGameData = function() {
     console.log('Game saved.');
 };
 
+window.loadGameData = function() {
+    const raw = localStorage.getItem('bibliomon_save');
+    if (!raw) return false;
+    try {
+        const saved = JSON.parse(raw);
+        const state = window.gameState;
+        state.currentMap = saved.currentMap || 'ground';
+        state.player.tileX = saved.player.tileX || 19;
+        state.player.tileY = saved.player.tileY || 29;
+        state.player.facing = saved.player.facing || 'down';
+        state.backpack = saved.backpack || [];
+        state.libraryAccount = saved.libraryAccount || [];
+        state.items = saved.items || [];
+        state.defeatedTrainers = saved.defeatedTrainers || [];
+        state.puzzleSolved = saved.puzzleSolved || false;
+        state.gym1Defeated = saved.gym1Defeated || false;
+        state.badges = saved.badges || [];
+        return true;
+    } catch (e) {
+        return false;
+    }
+};
+
 const game = new Phaser.Game(config);
 
-// Global state
+// Global game state
 window.gameState = {
-    mode: 'walk',           // 'walk', 'battle', 'menu', 'text', 'account', 'load_prompt'
+    mode: 'walk',
     currentMap: 'ground',
-    playerPos: { x: 0, y: 0 },
-    facing: 'down',
+    player: {
+        tileX: 19,
+        tileY: 29,
+        facing: 'down',
+        isMoving: false,
+        moveTween: null
+    },
     backpack: [],
     libraryAccount: [],
     items: [
@@ -64,5 +96,6 @@ window.gameState = {
     accountSelectZone: 'backpack',
     accountSelectedIndex: 0,
     startTime: Date.now(),
-    savedPlayTime: 0
+    savedPlayTime: 0,
+    trainerMap: {}
 };
