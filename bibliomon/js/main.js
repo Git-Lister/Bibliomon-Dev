@@ -5,7 +5,31 @@ const config = {
     parent: 'game-container',
     pixelArt: true,
     backgroundColor: '#1a1a1a',
+    physics: {
+        default: 'arcade',
+        arcade: {
+            gravity: { y: 0 },       // top-down RPG – no gravity needed
+            debug: false              // set to true if you need to see hitboxes
+        }
+    },
     scene: [BootScene, OverworldScene, BattleScene, MenuScene]
+};
+
+window.saveGameData = function() {
+    const state = window.gameState;
+    const data = {
+        currentMap: state.currentMap,
+        playerPos: state.playerPos,
+        backpack: state.backpack,
+        libraryAccount: state.libraryAccount,
+        items: state.items,
+        defeatedTrainers: state.defeatedTrainers,
+        puzzleSolved: state.puzzleSolved,
+        gym1Defeated: state.gym1Defeated,
+        badges: state.badges
+    };
+    localStorage.setItem('bibliomon_save', JSON.stringify(data));
+    console.log('Game saved.');
 };
 
 const game = new Phaser.Game(config);

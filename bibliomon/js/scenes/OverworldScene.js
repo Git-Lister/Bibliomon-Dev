@@ -6,6 +6,30 @@ class OverworldScene extends Phaser.Scene {
     create() {
         this.cameras.main.setBackgroundColor('#1a1a1a');
         this.gameState = window.gameState;
+        // Ensure player starts at the library entrance if no saved position
+        if (this.gameState.playerPos.x === 0 && this.gameState.playerPos.y === 0) {
+            const groundMap = GROUND_MAP;
+            for (let c = 0; c < groundMap[29].length; c++) {
+                if (groundMap[29][c] === '.') {
+                    this.gameState.playerPos = { x: c, y: 29 };
+                    break;
+                }
+            }
+        }
+        // Initialise trainer map only once
+        if (!this.gameState.trainerMap || Object.keys(this.gameState.trainerMap).length === 0) {
+            this.gameState.trainerMap = {};
+            const groundData = GROUND_MAP;
+            let trainerIndex = 0;
+            for (let r = 0; r < groundData.length; r++) {
+                for (let c = 0; c < groundData[r].length; c++) {
+                    if (groundData[r][c] === 'T' && trainerIndex < GROUND_TRAINERS.length) {
+                        this.gameState.trainerMap[`${c},${r}`] = GROUND_TRAINERS[trainerIndex];
+                        trainerIndex++;
+                    }
+                }
+            }
+        }
         this.buildMap();
         this.createPlayer();
         this.setupInput();
