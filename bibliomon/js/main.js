@@ -12,7 +12,7 @@ const config = {
             debug: false
         }
     },
-    scene: [BootScene, OverworldScene, BattleScene, MenuScene]
+    scene: [BootScene, OverworldScene, BattleScene, MenuScene, DialogueScene]
 };
 
 window.saveGameData = function() {

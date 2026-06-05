@@ -25,7 +25,7 @@ class OverworldScene extends Phaser.Scene {
                 }
             }
             if (firstDot !== -1) {
-                p.tileX = Math.floor((firstDot + lastDot) / 2); // centre of entrance
+                p.tileX = Math.floor((firstDot + lastDot) / 2);
                 p.tileY = row;
             }
         }
@@ -70,7 +70,6 @@ class OverworldScene extends Phaser.Scene {
     buildMap() {
         const mapData = this.gameState.currentMap === 'ground' ? GROUND_MAP : FLOOR1_MAP;
 
-        // Clear previous tiles if scene restarts
         if (this.allTiles) this.allTiles.clear(true, true);
         this.allTiles = this.add.group();
 
@@ -78,11 +77,10 @@ class OverworldScene extends Phaser.Scene {
         for (let r = 0; r < mapData.length; r++) {
             for (let c = 0; c < mapData[r].length; c++) {
                 let tileChar = mapData[r][c];
-                if (tileChar === '.') continue; // floor is background colour
+                if (tileChar === '.') continue;
 
-                // Map spin tiles to their correct key (P> etc.)
                 if (tileChar.startsWith('P') && tileChar.length === 2) {
-                    tileChar = tileChar; // already correct
+                    tileChar = tileChar;
                 } else if (tileChar === 'P') {
                     // not used
                 }
@@ -105,9 +103,8 @@ class OverworldScene extends Phaser.Scene {
         this.player.setOrigin(0.5);
         this.player.setDepth(2);
 
-        // Play idle animation (standing still = first frame of down direction)
         this.player.anims.play('walk_down');
-        this.player.anims.pause(); // we'll resume on movement
+        this.player.anims.pause();
 
         this.cameras.main.startFollow(this.player, true, 1, 1);
         this.cameras.main.setBounds(0, 0, 40 * 16, 30 * 16);
@@ -145,19 +142,16 @@ class OverworldScene extends Phaser.Scene {
             return;
         }
 
-        // Spin tile – delegate to spin handler (which will set inputLocked)
         if (tile.startsWith('P')) {
             this.startSpinTile(nextCol, nextRow, tile);
             return;
         }
 
-        // Stairs
         if (tile === 'E') {
             this.handleStairs();
             return;
         }
 
-        // Walk: linear tween, constant speed, no easing
         this.player.anims.play(`walk_${this.gameState.player.facing}`);
         p.isMoving = true;
         this.tweens.add({
@@ -165,7 +159,7 @@ class OverworldScene extends Phaser.Scene {
             x: nextCol * 16 + 8,
             y: nextRow * 16 + 8,
             duration: 120,
-            ease: 'Linear',                     // amendment 2: constant speed
+            ease: 'Linear',
             onComplete: () => {
                 p.tileX = nextCol;
                 p.tileY = nextRow;
@@ -179,7 +173,6 @@ class OverworldScene extends Phaser.Scene {
     checkTileAfterMove(col, row, tile) {
         if (this.gameState.mode !== 'walk' || this.gameState.inputLocked) return;
 
-        // amendment 1: manual grid checks instead of physics overlap
         if (tile === 'S') {
             if (Math.random() < 0.10) {
                 const roll = Math.random();
@@ -225,7 +218,7 @@ class OverworldScene extends Phaser.Scene {
         }
     }
 
-    // ── Spin‑tile puzzle (unchanged logic) ──────────────────────────────────
+    // ── Spin‑tile puzzle ─────────────────────────────────────────────────────
     startSpinTile(col, row, tile) {
         this.gameState.inputLocked = true;
         this.gameState.player.tileX = col;
@@ -291,44 +284,57 @@ class OverworldScene extends Phaser.Scene {
             case 'right': tx++; break;
         }
         const tile = this.getTileAt(tx, ty);
+
         if (tile === 'H') {
             this.gameState.backpack.forEach(b => b.currentHP = b.maxHP);
-            this.scene.launch('Menu', { mode: 'account' });
-            this.scene.pause();
+            this.showMessage('All books restored. Opening Library Account…', () => {
+                this.scene.launch('Menu', { mode: 'account' });
+                this.scene.pause();
+            });
         } else if (tile === 'K') {
             this.gameState.backpack.forEach(b => b.currentHP = b.maxHP);
             saveGameData();
             this.showMessage('Kitchenette break! Party healed and game saved.');
         } else if (tile === 'V') {
             let slot = this.gameState.items.find(i => i.itemId === 'potion');
-            if (!slot) { slot = { itemId:'potion', qty:0 }; this.gameState.items.push(slot); }
+            if (!slot) { slot = { itemId: 'potion', qty: 0 }; this.gameState.items.push(slot); }
             if (slot.qty < 20) { slot.qty++; this.showMessage('Obtained a Potion!'); }
             else { this.showMessage('Inventory full for Potions.'); }
         } else if (tile === 'C') {
             let slot = this.gameState.items.find(i => i.itemId === 'super_potion');
-            if (!slot) { slot = { itemId:'super_potion', qty:0 }; this.gameState.items.push(slot); }
+            if (!slot) { slot = { itemId: 'super_potion', qty: 0 }; this.gameState.items.push(slot); }
             if (slot.qty < 20) { slot.qty++; this.showMessage('Obtained a Super Potion!'); }
             else { this.showMessage('Inventory full for Super Potions.'); }
         } else if (tile === 'L') {
-            this.scene.launch('Menu', { mode: 'account' });
-            this.scene.pause();
+            this.showMessage('Opening Library Account…', () => {
+                this.scene.launch('Menu', { mode: 'account' });
+                this.scene.pause();
+            });
         } else if (tile === 'G') {
             if (this.gameState.gym1Defeated) {
-                this.showMessage('You already conquered the Special Collections Gym.');
+                this.showMessage('You have already conquered the Special Collections Gym.');
             } else {
                 this.startGymChallenge();
             }
         }
     }
 
-    showMessage(text) {
-        this.gameState.overworldMessage = text;
+    showMessage(text, callback = null) {
         this.gameState.mode = 'text';
-        console.log(text);
+        this.scene.launch('Dialogue', {
+            text: text,
+            callback: () => {
+                this.gameState.mode = 'walk';
+                if (callback) callback();
+            }
+        });
+        this.scene.pause();
     }
 
     startGymChallenge() {
-        console.log('Gym challenge started.');
+        this.showMessage('Prepare to face the Archivists!', () => {
+            // Will be fully implemented in Phase 6
+        });
     }
 
     // ── Main loop ────────────────────────────────────────────────────────────
@@ -354,7 +360,6 @@ class OverworldScene extends Phaser.Scene {
             this.scene.pause();
         }
 
-        // Debug info
         if (this.debugText) {
             this.debugText.setText(`Tile: (${p.tileX},${p.tileY}) ${this.getTileAt(p.tileX, p.tileY)}`);
         }
