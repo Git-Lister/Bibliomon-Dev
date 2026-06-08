@@ -30,6 +30,7 @@ class BattleScene extends Phaser.Scene {
         this.gameState.battle = b;
         window.gameState.activeBattleScene = this;
         this.lastOpponentId = b.opponent.id;
+        this.lastPlayerBookId = b.playerBook.id;
         this.gameState.mode = 'battle';
 
         this.cameras.main.flash(300, 255, 255, 255);
@@ -95,6 +96,13 @@ class BattleScene extends Phaser.Scene {
             this.opponentLevel.setText(`Lv.${b.opponent.level}`);
             this.lastOpponentId = b.opponent.id;
         }
+
+        if (b.playerBook.id !== this.lastPlayerBookId) {
+            this.playerName.setText(b.playerBook.name);
+            this.playerLevel.setText(`Lv.${b.playerBook.level}`);
+            // The back sprite is always the same, so no texture change needed.
+            this.lastPlayerBookId = b.playerBook.id;
+}
 
         let oppPct = Math.max(0, b.opponent.currentHP / b.opponent.maxHP);
         this.opponentHpBar.setScale(oppPct, 1);

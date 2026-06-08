@@ -27,6 +27,9 @@ window.saveGameData = function() {
         backpack: state.backpack,
         libraryAccount: state.libraryAccount,
         items: state.items,
+        credits: state.credits,
+        hiddenItems: state.hiddenItems,
+        collectedItems: state.collectedItems,
         defeatedTrainers: state.defeatedTrainers,
         puzzleSolved: state.puzzleSolved,
         gym1Defeated: state.gym1Defeated,
@@ -43,18 +46,22 @@ window.loadGameData = function() {
         const saved = JSON.parse(raw);
         const state = window.gameState;
         state.currentMap = saved.currentMap || 'ground';
-        state.player.tileX = saved.player.tileX || 19;
-        state.player.tileY = saved.player.tileY || 29;
-        state.player.facing = saved.player.facing || 'down';
+        state.player.tileX = saved.player?.tileX || 19;
+        state.player.tileY = saved.player?.tileY || 29;
+        state.player.facing = saved.player?.facing || 'down';
         state.backpack = saved.backpack || [];
         state.libraryAccount = saved.libraryAccount || [];
         state.items = saved.items || [];
+        state.credits = saved.credits || 100;
+        state.hiddenItems = saved.hiddenItems || [];
+        state.collectedItems = saved.collectedItems || [];
         state.defeatedTrainers = saved.defeatedTrainers || [];
         state.puzzleSolved = saved.puzzleSolved || false;
         state.gym1Defeated = saved.gym1Defeated || false;
         state.badges = saved.badges || [];
         return true;
     } catch (e) {
+        console.error('Save load error:', e);
         return false;
     }
 };
@@ -97,5 +104,9 @@ window.gameState = {
     accountSelectedIndex: 0,
     startTime: Date.now(),
     savedPlayTime: 0,
-    trainerMap: {}
+    trainerMap: {},
+    hiddenItems: [
+    { x: 18, y: 23, itemId: 'potion', qty: 1 },    // example – you can change coords
+    { x: 10, y: 13, itemId: 'super_potion', qty: 1 }
+]
 };

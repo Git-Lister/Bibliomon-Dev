@@ -16,17 +16,16 @@ function advanceLog() {
         } else {
             b.waitingForInput = true;
         }
-        // Refresh the battle scene
+        // Refresh the battle scene UI
         if (window.gameState.activeBattleScene) {
             window.gameState.activeBattleScene.updateUI();
         }
     } else {
         b.currentMsg = '';
         b.waitingForInput = false;
+        // If battle is over, do NOT clear state here – the scene will do it.
         if (b.battleOver) {
-            window.gameState.mode = 'walk';
-            window.gameState.battle = null;
-            window.gameState.activeBattleScene = null;
+            // scene handles cleanup
             return;
         }
         if (b.playerBook.currentHP <= 0) {
@@ -37,7 +36,6 @@ function advanceLog() {
             b.menuMode = 'main';
             b.selectionIdx = 0;
         }
-        // Refresh again after faint / menu reset
         if (window.gameState.activeBattleScene) {
             window.gameState.activeBattleScene.updateUI();
         }
@@ -181,10 +179,9 @@ function executeBattleTurn(playerMoveId) {
 function processPlayerFaint() {
     const b = window.gameState.battle;
     if (b.battleOver || b.playerFaintProcessed) return;
-    
+
     queueMsg(`${b.playerBook.name} fainted!`);
     let nextIdx = window.gameState.backpack.findIndex(bk => bk.currentHP > 0);
-    
     if (nextIdx !== -1) {
         window.gameState.activeBookIndex = nextIdx;
         b.playerBook = window.gameState.backpack[nextIdx];
@@ -198,11 +195,20 @@ function processPlayerFaint() {
         queueMsg('All your books have fainted…');
         b.battleOver = true;
         b.playerFaintProcessed = true;
-        // After the last message, the BattleScene will handle the warp
         advanceLog();
     }
 }
+// Award Rise‑Points
+let creditsEarned = 0;
+if (b.type === 'wild') {
+    creditsEarned = b.opponent.level * 5;
+} else {
+    creditsEarned = b.trainer.books.reduce((a, c) => a + c.level, 0) * 10;
+}
+window.gameState.credits += creditsEarned;
+queueMsg(`Earned ${creditsEarned} Rise‑Points!`);
 
+// Save after battle
 function processOpponentFaint() {
     const b = window.gameState.battle;
     if (b.processingFaint || b.battleOver) return;
@@ -227,7 +233,7 @@ function processOpponentFaint() {
 
                 let baseTemplate = ALL_BOOKS[book.id];
                 const oldMax = book.maxHP;
-                book.maxHP = baseTemplate.baseStats.hp + Math.floor(baseTemplate.baseStats.hp * 0.10 * (book.level - 1));
+                book.maxHP = baseTemplate.baseStats.hp + Math.floor(baseTemplate.baseStats.hp * 0.07 * (book.level - 1));
                 book.stats.atk = baseTemplate.baseStats.atk + Math.floor(baseTemplate.baseStats.atk * 0.05 * (book.level - 1));
                 book.stats.def = baseTemplate.baseStats.def + Math.floor(baseTemplate.baseStats.def * 0.05 * (book.level - 1));
                 book.stats.spAtk = baseTemplate.baseStats.spAtk + Math.floor(baseTemplate.baseStats.spAtk * 0.05 * (book.level - 1));
@@ -247,7 +253,7 @@ function processOpponentFaint() {
                     book.name = nextTemplate.name;
 
                     const priorMax = book.maxHP;
-                    book.maxHP = nextTemplate.baseStats.hp + Math.floor(nextTemplate.baseStats.hp * 0.10 * (book.level - 1));
+                    book.maxHP = nextTemplate.baseStats.hp + Math.floor(nextTemplate.baseStats.hp * 0.07 * (book.level - 1));
                     book.stats.atk = nextTemplate.baseStats.atk + Math.floor(nextTemplate.baseStats.atk * 0.05 * (book.level - 1));
                     book.stats.def = nextTemplate.baseStats.def + Math.floor(nextTemplate.baseStats.def * 0.05 * (book.level - 1));
                     book.stats.spAtk = nextTemplate.baseStats.spAtk + Math.floor(nextTemplate.baseStats.spAtk * 0.05 * (book.level - 1));
@@ -305,6 +311,10 @@ function handleEscapeAttempt() {
         const oMoveId = b.opponent.moves[Math.floor(Math.random() * b.opponent.moves.length)];
         executeMove(oMoveId, b.opponent, b.playerBook, b.opponentStages, b.playerStages, b.opponent.name, b.playerBook.name, false);
         advanceLog();
+    // Refresh the battle UI immediately so HP bars react in real time
+    if (window.gameState.activeBattleScene) {
+        window.gameState.activeBattleScene.updateUI();
+    }
     }
 }
 
