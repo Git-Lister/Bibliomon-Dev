@@ -136,7 +136,7 @@ class OverworldScene extends Phaser.Scene {
         const nextRow = p.tileY + dy;
         const tile = this.getTileAt(nextCol, nextRow);
 
-        if (tile === 'W') return;
+        if (tile === 'W' || tile === 'H' || tile === 'Z') return;
         if (tile === 'B' && !this.gameState.puzzleSolved) {
             this.showMessage('The barrier is locked. Solve the puzzle first.');
             return;
@@ -151,6 +151,24 @@ class OverworldScene extends Phaser.Scene {
             this.handleStairs();
             return;
         }
+
+        if (tile === 'Z') {
+            this.showMessage('"Welcome to the Library! How can I help you?"');
+            return;
+        }   
+
+        if (tile === 'H') {
+        if (this.gameState.player.facing !== 'up') {
+            this.showMessage('The counter is staffed from the front. Walk around to the service side.');
+            return;
+        }
+        this.gameState.backpack.forEach(b => b.currentHP = b.maxHP);
+        this.showMessage('All books restored. Opening Library Account…', () => {
+            this.scene.launch('Menu', { mode: 'account' });
+            this.scene.pause();
+        });
+        return;
+    }
 
         this.player.anims.play(`walk_${this.gameState.player.facing}`);
         p.isMoving = true;

@@ -87,26 +87,28 @@ class BootScene extends Phaser.Scene {
         canvas.height = rows * tileSize;
         const ctx = canvas.getContext('2d');
 
-        // Define tile mapping: index -> map char
+
+        // ── Tile mapping: index → map char ─────────────────────────────────────
         const tileDefs = [
-            { char: '.', color: '#fafaf9', detail: 'dot' },
-            { char: 'W', color: '#27272a', stroke: '#18181b' },
-            { char: 'H', color: '#1e3a8a' },
-            { char: 'K', color: '#065f46' },
-            { char: 'S', color: '#7c2d12', detail: 'books' },
-            { char: 'D', color: '#78350f' },
-            { char: 'T', color: '#fafaf9', detail: 'trainer' },
-            { char: 'V', color: '#6b21a8' },
-            { char: 'C', color: '#9a3412' },
-            { char: 'E', color: '#71717a' },
-            { char: 'L', color: '#d4a574' },
-            { char: 'B', color: '#7f1d1d' },
-            { char: 'X', color: '#fafaf9', detail: 'goal' },
-            { char: 'G', color: '#4a1e1e', detail: 'gym' },
-            { char: 'P>', color: '#0ea5e9' },
-            { char: 'P<', color: '#0ea5e9' },
-            { char: 'P^', color: '#0ea5e9' },
-            { char: 'Pv', color: '#0ea5e9' }
+            { char: '.', color: '#fafaf9', detail: 'dot'         },   // Carpet floor
+            { char: 'W', color: '#27272a', stroke: '#18181b'    },   // Concrete wall
+            { char: 'H', color: '#1e3a8a'                       },   // Help Desk counter (interactable)
+            { char: 'K', color: '#065f46'                       },   // Kitchenette (heal + save)
+            { char: 'S', color: '#7c2d12', detail: 'books'      },   // Bookshelf (wild encounter zone)
+            { char: 'D', color: '#78350f'                       },   // Study door
+            { char: 'T', color: '#fafaf9', detail: 'trainer'    },   // Trainer (NPC battle)
+            { char: 'V', color: '#6b21a8'                       },   // Vending machine (gives Potion)
+            { char: 'C', color: '#9a3412'                       },   // Café counter (gives Super Potion)
+            { char: 'E', color: '#71717a'                       },   // Staircase (floor transition)
+            { char: 'L', color: '#d4a574'                       },   // Library Account Terminal
+            { char: 'B', color: '#7f1d1d'                       },   // Barrier (locked until puzzle solved)
+            { char: 'X', color: '#fafaf9', detail: 'goal'       },   // Puzzle goal tile
+            { char: 'G', color: '#4a1e1e', detail: 'gym'        },   // Gym entrance
+            { char: 'P>', color: '#0ea5e9'                      },   // Spin tile (right arrow)
+            { char: 'P<', color: '#0ea5e9'                      },   // Spin tile (left arrow)
+            { char: 'P^', color: '#0ea5e9'                      },   // Spin tile (up arrow)
+            { char: 'Pv', color: '#0ea5e9'                      },   // Spin tile (down arrow)
+            { char: 'Z', color: '#fafaf9', detail: 'staff'      }    // Staff member (decorative)
         ];
 
         tileDefs.forEach((def, index) => {
@@ -154,6 +156,19 @@ class BootScene extends Phaser.Scene {
                 if (def.char === 'Pv') { ctx.moveTo(x + 8, y + 3); ctx.lineTo(x + 8, y + 13); ctx.lineTo(x + 4, y + 9); ctx.moveTo(x + 8, y + 13); ctx.lineTo(x + 12, y + 9); }
                 if (def.char === 'P<') { ctx.moveTo(x + 13, y + 8); ctx.lineTo(x + 3, y + 8); ctx.lineTo(x + 7, y + 4); ctx.moveTo(x + 3, y + 8); ctx.lineTo(x + 7, y + 12); }
                 if (def.char === 'P^') { ctx.moveTo(x + 8, y + 13); ctx.lineTo(x + 8, y + 3); ctx.lineTo(x + 4, y + 7); ctx.moveTo(x + 8, y + 3); ctx.lineTo(x + 12, y + 7); }
+                ctx.stroke();
+            } else if (def.detail === 'staff') {
+                // Friendly staff member
+                ctx.fillStyle = '#3b82f6';  // blue uniform
+                ctx.fillRect(x + 5, y + 5, 6, 8);
+                ctx.fillStyle = '#fbcfe8';  // face
+                ctx.beginPath();
+                ctx.arc(x + 8, y + 3, 2.5, 0, Math.PI * 2);
+                ctx.fill();
+                // Smile
+                ctx.strokeStyle = '#000';
+                ctx.beginPath();
+                ctx.arc(x + 8, y + 4, 1, 0, Math.PI);
                 ctx.stroke();
             }
 

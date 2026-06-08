@@ -11,7 +11,6 @@ class BattleScene extends Phaser.Scene {
 
     create() {
         this.gameState = window.gameState;
-        // Build battle state
         const b = {
             type: this.battleType,
             opponent: this.opponent,
@@ -25,18 +24,18 @@ class BattleScene extends Phaser.Scene {
             playerOverdue: false, opponentOverdue: false,
             menuMode: 'main', selectionIdx: 0, log: [], currentMsg: '',
             participants: new Set([this.gameState.backpack[this.gameState.activeBookIndex].id]),
-            battleOver: false, processingFaint: false
+            battleOver: false, processingFaint: false,
+            waitingForInput: false
         };
         this.gameState.battle = b;
+        window.gameState.activeBattleScene = this;
+        this.lastOpponentId = b.opponent.id;
         this.gameState.mode = 'battle';
 
-        // Flash
         this.cameras.main.flash(300, 255, 255, 255);
 
-        // Draw UI
         this.createUI();
 
-        // Start dialogue
         if (this.battleType === 'wild') {
             queueMsg(`A wild [${b.opponent.name}] appeared!`);
         } else {
@@ -46,34 +45,32 @@ class BattleScene extends Phaser.Scene {
         advanceLog();
         this.updateUI();
 
-        // Input
         this.input.keyboard.on('keydown', this.handleInput, this);
+        this.inputLockTimer = 0;
     }
 
     createUI() {
-        // Background
+        const gs = this.gameState;
+        const b = gs.battle;
+
         this.add.rectangle(320, 240, 640, 480, 0x000000);
 
-        // Opponent area (top right)
-        this.opponentSprite = this.add.image(420, 100, `book_front_${this.opponent.type}`).setOrigin(0.5);
-        this.opponentName = this.add.text(300, 40, this.opponent.name, { fontFamily: 'monospace', fontSize: '14px', fill: '#fff' });
-        this.opponentLevel = this.add.text(300, 60, `Lv.${this.opponent.level}`, { fontFamily: 'monospace', fontSize: '12px', fill: '#aaa' });
+        this.opponentSprite = this.add.image(420, 100, `book_front_${b.opponent.type}`).setOrigin(0.5);
+        this.opponentName = this.add.text(300, 40, b.opponent.name, { fontFamily: 'monospace', fontSize: '14px', fill: '#fff' });
+        this.opponentLevel = this.add.text(300, 60, `Lv.${b.opponent.level}`, { fontFamily: 'monospace', fontSize: '12px', fill: '#aaa' });
         this.opponentHpBarBg = this.add.rectangle(420, 140, 100, 6, 0x666666).setOrigin(0.5);
         this.opponentHpBar = this.add.rectangle(420, 140, 100, 6, 0x22cc22).setOrigin(0.5);
 
-        // Player area (bottom left)
         this.playerSprite = this.add.image(160, 340, 'book_back').setOrigin(0.5);
-        this.playerName = this.add.text(40, 260, this.gameState.battle.playerBook.name, { fontFamily: 'monospace', fontSize: '14px', fill: '#fff' });
-        this.playerLevel = this.add.text(40, 280, `Lv.${this.gameState.battle.playerBook.level}`, { fontFamily: 'monospace', fontSize: '12px', fill: '#aaa' });
+        this.playerName = this.add.text(40, 260, b.playerBook.name, { fontFamily: 'monospace', fontSize: '14px', fill: '#fff' });
+        this.playerLevel = this.add.text(40, 280, `Lv.${b.playerBook.level}`, { fontFamily: 'monospace', fontSize: '12px', fill: '#aaa' });
         this.playerHpBarBg = this.add.rectangle(160, 370, 100, 6, 0x666666).setOrigin(0.5);
         this.playerHpBar = this.add.rectangle(160, 370, 100, 6, 0x22cc22).setOrigin(0.5);
-        this.playerHpText = this.add.text(40, 390, `HP: ${this.gameState.battle.playerBook.currentHP}/${this.gameState.battle.playerBook.maxHP}`, { fontFamily: 'monospace', fontSize: '11px', fill: '#fff' });
+        this.playerHpText = this.add.text(40, 390, `HP: ${b.playerBook.currentHP}/${b.playerBook.maxHP}`, { fontFamily: 'monospace', fontSize: '11px', fill: '#fff' });
 
-        // Message box (bottom)
         this.msgBoxBg = this.add.rectangle(320, 430, 600, 80, 0x111111).setOrigin(0.5).setStrokeStyle(2, 0xffffff);
         this.msgText = this.add.text(40, 400, '', { fontFamily: 'monospace', fontSize: '12px', fill: '#fff', wordWrap: { width: 560 } });
 
-        // Command menu (right side of player area) – 5 items vertical list
         this.menuItems = ['FIGHT', 'BORROW', 'ITEM', 'RETURN', 'FLEE'];
         this.menuTexts = [];
         for (let i = 0; i < this.menuItems.length; i++) {
@@ -82,15 +79,23 @@ class BattleScene extends Phaser.Scene {
         }
         this.menuCursor = this.add.text(480, 260, '▶', { fontFamily: 'monospace', fontSize: '12px', fill: '#ff0' });
 
-        // Sub-menu groups (hidden initially)
         this.subMenuGroup = this.add.group();
-        this.mode = 'main'; // 'main', 'moves', 'items', 'switch', 'message'
+        this.mode = 'main';
         this.subSelection = 0;
     }
 
     updateUI() {
         const b = this.gameState.battle;
-        // Update HP bars
+        if (!b) return;
+
+        // Refresh opponent sprite if the opponent changed (trainer sent out next book)
+        if (b.opponent.id !== this.lastOpponentId) {
+            this.opponentSprite.setTexture(`book_front_${b.opponent.type}`);
+            this.opponentName.setText(b.opponent.name);
+            this.opponentLevel.setText(`Lv.${b.opponent.level}`);
+            this.lastOpponentId = b.opponent.id;
+        }
+
         let oppPct = Math.max(0, b.opponent.currentHP / b.opponent.maxHP);
         this.opponentHpBar.setScale(oppPct, 1);
         this.opponentHpBar.setFillStyle(oppPct > 0.5 ? 0x22cc22 : oppPct > 0.2 ? 0xcccc22 : 0xcc2222);
@@ -100,10 +105,8 @@ class BattleScene extends Phaser.Scene {
         this.playerHpBar.setFillStyle(playerPct > 0.5 ? 0x22cc22 : playerPct > 0.2 ? 0xcccc22 : 0xcc2222);
         this.playerHpText.setText(`HP: ${b.playerBook.currentHP}/${b.playerBook.maxHP}`);
 
-        // Show current message
         this.msgText.setText(b.currentMsg || '');
 
-        // Show/hide menus based on mode
         this.menuTexts.forEach(t => t.setVisible(this.mode === 'main'));
         this.menuCursor.setVisible(this.mode === 'main');
         this.subMenuGroup.clear(true, true);
@@ -117,7 +120,6 @@ class BattleScene extends Phaser.Scene {
                 const txt = this.add.text(400, 260 + i * 20, `${mv.name} (${mv.type})`, { fontFamily: 'monospace', fontSize: '11px', fill: '#fff' });
                 this.subMenuGroup.add(txt);
             }
-            // cursor for moves
             const cursor = this.add.text(380, 260 + this.subSelection * 20, '▶', { fontFamily: 'monospace', fontSize: '11px', fill: '#ff0' });
             this.subMenuGroup.add(cursor);
         } else if (this.mode === 'items') {
@@ -142,21 +144,37 @@ class BattleScene extends Phaser.Scene {
             const cursor = this.add.text(380, 260 + this.subSelection * 18, '▶', { fontFamily: 'monospace', fontSize: '10px', fill: '#ff0' });
             this.subMenuGroup.add(cursor);
         }
+
+        // Only synchronise the base mode when we are NOT in a sub‑menu
+        if (this.mode === 'main' || this.mode === 'message') {
+            if (b.menuMode === 'main') {
+                this.mode = 'main';
+            } else if (b.menuMode === 'message') {
+                this.mode = 'message';
+            }
+            if (this.mode === 'main') {
+                this.subSelection = 0;
+            }
+        }
     }
 
     handleInput(event) {
         const b = this.gameState.battle;
-        if (b.battleOver) return;
+        if (!b || b.battleOver) return;
+
+        if (this.inputLockTimer && Date.now() < this.inputLockTimer) return;
 
         if (b.menuMode === 'message') {
-            if (event.code === 'Enter' || event.code === 'Space') {
+            if (b.waitingForInput && (event.code === 'Enter' || event.code === 'Space')) {
                 advanceLog();
+                this.inputLockTimer = Date.now() + 300;
                 this.updateUI();
-                // If blackout, warp
-                if (b.battleOver && b.playerBook.currentHP <= 0 && this.gameState.backpack.every(bk => bk.currentHP <= 0)) {
-                    this.time.delayedCall(500, () => this.blackoutWarp());
-                } else if (b.battleOver) {
-                    this.time.delayedCall(300, () => this.returnToOverworld());
+                if (b.battleOver) {
+                    if (b.playerBook.currentHP <= 0 && this.gameState.backpack.every(bk => bk.currentHP <= 0)) {
+                        this.time.delayedCall(500, () => this.blackoutWarp());
+                    } else {
+                        this.time.delayedCall(300, () => this.returnToOverworld());
+                    }
                 }
             }
             return;
@@ -173,6 +191,7 @@ class BattleScene extends Phaser.Scene {
                     case 3: this.mode = 'switch'; this.subSelection = 0; break;
                     case 4: handleEscapeAttempt(); break;
                 }
+                this.inputLockTimer = Date.now() + 200;
             }
         } else if (this.mode === 'moves') {
             const moves = b.playerBook.moves;
@@ -221,7 +240,6 @@ class BattleScene extends Phaser.Scene {
     }
 
     blackoutWarp() {
-        // Find Help Desk on ground floor
         let hCol = 3, hRow = 24;
         for (let r = 0; r < GROUND_MAP.length; r++) {
             for (let c = 0; c < GROUND_MAP[r].length; c++) {
@@ -234,14 +252,6 @@ class BattleScene extends Phaser.Scene {
         this.gameState.currentMap = 'ground';
         this.gameState.mode = 'walk';
         this.scene.stop();
-        this.scene.start('Overworld'); // restart overworld with new position
-    }
-
-    // We need to include handleBattleItemUse here since it's called from input
-    // but it's defined in battleLogic? Actually we'll place it in battleLogic too, but it references gameState.battle, so it's fine.
-    // We'll just paste it here as a method that delegates to the global function.
-    handleBattleItemUse(idx) {
-        // defined globally in battleLogic
-        window.handleBattleItemUse(idx);
+        this.scene.start('Overworld');
     }
 }

@@ -7,19 +7,40 @@ function queueMsg(msg) {
 function advanceLog() {
     const b = window.gameState.battle;
     if (!b) return;
+
     if (b.log.length > 0) {
         b.currentMsg = b.log.shift();
         b.menuMode = 'message';
+        if (b.log.length > 0) {
+            setTimeout(() => advanceLog(), 800);
+        } else {
+            b.waitingForInput = true;
+        }
+        // Refresh the battle scene
+        if (window.gameState.activeBattleScene) {
+            window.gameState.activeBattleScene.updateUI();
+        }
     } else {
         b.currentMsg = '';
+        b.waitingForInput = false;
         if (b.battleOver) {
             window.gameState.mode = 'walk';
             window.gameState.battle = null;
+            window.gameState.activeBattleScene = null;
             return;
         }
-        if (b.playerBook.currentHP <= 0) processPlayerFaint();
-        else if (b.opponent.currentHP <= 0) processOpponentFaint();
-        else { b.menuMode = 'main'; b.selectionIdx = 0; }
+        if (b.playerBook.currentHP <= 0) {
+            processPlayerFaint();
+        } else if (b.opponent.currentHP <= 0) {
+            processOpponentFaint();
+        } else {
+            b.menuMode = 'main';
+            b.selectionIdx = 0;
+        }
+        // Refresh again after faint / menu reset
+        if (window.gameState.activeBattleScene) {
+            window.gameState.activeBattleScene.updateUI();
+        }
     }
 }
 
@@ -159,8 +180,11 @@ function executeBattleTurn(playerMoveId) {
 
 function processPlayerFaint() {
     const b = window.gameState.battle;
+    if (b.battleOver || b.playerFaintProcessed) return;
+    
     queueMsg(`${b.playerBook.name} fainted!`);
     let nextIdx = window.gameState.backpack.findIndex(bk => bk.currentHP > 0);
+    
     if (nextIdx !== -1) {
         window.gameState.activeBookIndex = nextIdx;
         b.playerBook = window.gameState.backpack[nextIdx];
@@ -172,8 +196,10 @@ function processPlayerFaint() {
         advanceLog();
     } else {
         queueMsg('All your books have fainted…');
+        b.battleOver = true;
+        b.playerFaintProcessed = true;
+        // After the last message, the BattleScene will handle the warp
         advanceLog();
-        // blackout handled by BattleScene after messages
     }
 }
 
@@ -284,19 +310,46 @@ function handleEscapeAttempt() {
 
 function handleBorrowAttempt() {
     const b = window.gameState.battle;
-    if (b.type === 'trainer') { queueMsg("Can't borrow a trainer's book!"); advanceLog(); return; }
-    let opp = b.opponent;
-    let rate = ((3 * opp.maxHP - 2 * opp.currentHP) * opp.catchRate) / (3 * opp.maxHP);
-    if (Math.random() * 100 < rate) {
+    if (b.type === 'trainer') {
+        queueMsg("Can't borrow a trainer's book!");
+        advanceLog();
+        return;
+    }
+
+    const opp = b.opponent;
+    const catchRate = opp.catchRate || 100;
+    const maxHP = opp.maxHP;
+    const currentHP = opp.currentHP;
+
+    // Gen 1 capture formula: ((3*MaxHP - 2*CurrentHP) * CatchRate) / (3*MaxHP)
+    const rate = ((3 * maxHP - 2 * currentHP) * catchRate) / (3 * maxHP);
+    const success = Math.random() * 100 < rate;
+
+    if (success) {
         queueMsg(`Gotcha! ${opp.name} was checked out!`);
-        if (window.gameState.backpack.length < 6) window.gameState.backpack.push(opp);
-        else window.gameState.libraryAccount.push(opp);
+
+        if (window.gameState.backpack.length < 6) {
+            window.gameState.backpack.push(opp);
+            queueMsg(`${opp.name} was added to your backpack.`);
+        } else {
+            window.gameState.libraryAccount.push(opp);
+            queueMsg(`Backpack full! ${opp.name} was sent to your Library Account.`);
+        }
+
         b.battleOver = true;
         advanceLog();
+
+        // Automatically return to overworld after a short pause (no key press needed)
+        setTimeout(() => {
+            if (window.gameState.activeBattleScene) {
+                window.gameState.activeBattleScene.returnToOverworld();
+            }
+        }, 2000);
     } else {
         queueMsg('Oh no! It broke free!');
         const oMoveId = b.opponent.moves[Math.floor(Math.random() * b.opponent.moves.length)];
-        executeMove(oMoveId, b.opponent, b.playerBook, b.opponentStages, b.playerStages, opp.name, b.playerBook.name, false);
+        executeMove(oMoveId, b.opponent, b.playerBook, b.opponentStages, b.playerStages,
+                   opp.name, b.playerBook.name, false);
         advanceLog();
     }
 }
