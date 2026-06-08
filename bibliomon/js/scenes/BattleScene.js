@@ -19,6 +19,7 @@ class BattleScene extends Phaser.Scene {
             playerBook: this.gameState.backpack[this.gameState.activeBookIndex],
             playerStages: { atk:0, def:0, spAtk:0, spDef:0, spd:0 },
             opponentStages: { atk:0, def:0, spAtk:0, spDef:0, spd:0 },
+            pendingOpponentMove: null,
             playerConfused: false, playerConfusedTurns: 0,
             opponentConfused: false, opponentConfusedTurns: 0,
             playerOverdue: false, opponentOverdue: false,
@@ -208,6 +209,7 @@ class BattleScene extends Phaser.Scene {
             else if (event.code === 'Enter' || event.code === 'Space') {
                 executeBattleTurn(moves[this.subSelection]);
                 this.mode = 'message';
+                // Do NOT call updateUI here – the message system will refresh the screen
             } else if (event.code === 'Escape') {
                 this.mode = 'main';
             }

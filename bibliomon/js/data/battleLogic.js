@@ -9,23 +9,30 @@ function advanceLog() {
     if (!b) return;
 
     if (b.log.length > 0) {
-        b.currentMsg = b.log.shift();
+        const next = b.log.shift();
+
+        // If the next item is a function, execute it immediately and continue
+        if (typeof next === 'function') {
+            next();
+            advanceLog();
+            return;
+        }
+
+        // Otherwise it's a normal message
+        b.currentMsg = next;
         b.menuMode = 'message';
         if (b.log.length > 0) {
             setTimeout(() => advanceLog(), 800);
         } else {
             b.waitingForInput = true;
         }
-        // Refresh the battle scene UI
         if (window.gameState.activeBattleScene) {
             window.gameState.activeBattleScene.updateUI();
         }
     } else {
         b.currentMsg = '';
         b.waitingForInput = false;
-        // If battle is over, do NOT clear state here – the scene will do it.
         if (b.battleOver) {
-            // scene handles cleanup
             return;
         }
         if (b.playerBook.currentHP <= 0) {
@@ -65,6 +72,8 @@ function calculateDamage(move, attacker, defender, atkStages, defStages) {
 function executeMove(moveId, attacker, defender, atkStages, defStages, attName, defName, isAttackerPlayer) {
     if (attacker.currentHP <= 0) return;
     const move = MOVES[moveId];
+    const b = window.gameState.battle;
+
     queueMsg(`${attName} used ${move.name}!`);
 
     if (move.effect !== 'neverMiss' && Math.random() > move.accuracy) {
@@ -72,58 +81,68 @@ function executeMove(moveId, attacker, defender, atkStages, defStages, attName, 
         return;
     }
 
+    // Calculate damage once for effectiveness text
     let dmgResult = calculateDamage(move, attacker, defender, atkStages, defStages);
 
     if (move.power > 0) {
-        let hits = 1;
-        if (move.effect === 'multi2to5') hits = Math.floor(Math.random() * 4) + 2;
+        // Queue the damage step as a function so it runs when this message is displayed
+        queueMsg(function() {
+            let hits = 1;
+            if (move.effect === 'multi2to5') hits = Math.floor(Math.random() * 4) + 2;
 
-        let totalDmg = 0;
-        for (let h = 0; h < hits; h++) {
-            let chunk = calculateDamage(move, attacker, defender, atkStages, defStages).dmg;
-            defender.currentHP = Math.max(0, defender.currentHP - chunk);
-            totalDmg += chunk;
-            if (defender.currentHP <= 0) break;
-        }
+            let totalDmg = 0;
+            for (let h = 0; h < hits; h++) {
+                let chunk = calculateDamage(move, attacker, defender, atkStages, defStages).dmg;
+                defender.currentHP = Math.max(0, defender.currentHP - chunk);
+                totalDmg += chunk;
+                if (defender.currentHP <= 0) break;
+            }
 
-        if (hits > 1) queueMsg(`Hit ${hits} times! Total damage: ${totalDmg}.`);
-        else queueMsg(`Dealt ${totalDmg} damage.`);
+            if (hits > 1) queueMsg(`Hit ${hits} times! Total damage: ${totalDmg}.`);
+            else queueMsg(`Dealt ${totalDmg} damage.`);
 
-        if (dmgResult.eff > 1) queueMsg('Super effective!');
-        if (dmgResult.eff < 1) queueMsg('Not very effective…');
+            if (dmgResult.eff > 1) queueMsg('Super effective!');
+            if (dmgResult.eff < 1) queueMsg('Not very effective…');
 
-        if (move.effect === 'recoil33') {
-            let rec = Math.floor(totalDmg * 0.33);
-            attacker.currentHP = Math.max(0, attacker.currentHP - rec);
-            queueMsg(`${attName} took ${rec} recoil damage!`);
-        }
-        if (move.effect === 'drain50') {
-            let drn = Math.floor(totalDmg * 0.50);
-            attacker.currentHP = Math.min(attacker.maxHP, attacker.currentHP + drn);
-            queueMsg(`${attName} restored ${drn} HP.`);
-        }
+            if (move.effect === 'recoil33') {
+                let rec = Math.floor(totalDmg * 0.33);
+                attacker.currentHP = Math.max(0, attacker.currentHP - rec);
+                queueMsg(`${attName} took ${rec} recoil damage!`);
+            }
+            if (move.effect === 'drain50') {
+                let drn = Math.floor(totalDmg * 0.50);
+                attacker.currentHP = Math.min(attacker.maxHP, attacker.currentHP + drn);
+                queueMsg(`${attName} restored ${drn} HP.`);
+            }
+
+            // Refresh UI after HP change
+            if (window.gameState.activeBattleScene) {
+                window.gameState.activeBattleScene.updateUI();
+            }
+        });
     }
 
+    // Status effects are still applied immediately (they don't affect HP directly)
     if (defender.currentHP > 0 && move.effect) {
         const randRoll = Math.random();
         if (move.effect === 'lowerSpDef' && randRoll < 0.10 && defStages.spDef > -6) { defStages.spDef--; queueMsg(`${defName}'s Sp. Def fell!`); }
         if (move.effect === 'raiseAtk' && atkStages.atk < 6) { atkStages.atk++; queueMsg(`${attName}'s Attack rose!`); }
         if (move.effect === 'lowerAtk' && defStages.atk > -6) { defStages.atk--; queueMsg(`${defName}'s Attack fell!`); }
         if (move.effect === 'overdue10' && randRoll < 0.10) {
-            if (isAttackerPlayer) { if (!window.gameState.battle.opponentOverdue) { window.gameState.battle.opponentOverdue = true; queueMsg(`${defName} is Overdue!`); } }
-            else { if (!window.gameState.battle.playerOverdue) { window.gameState.battle.playerOverdue = true; queueMsg(`${defName} is Overdue!`); } }
+            if (isAttackerPlayer) { if (!b.opponentOverdue) { b.opponentOverdue = true; queueMsg(`${defName} is Overdue!`); } }
+            else { if (!b.playerOverdue) { b.playerOverdue = true; queueMsg(`${defName} is Overdue!`); } }
         }
         if (move.effect === 'raiseDef' && atkStages.def < 6) { atkStages.def++; queueMsg(`${attName}'s Defense rose!`); }
         if (move.effect === 'raiseSpAtk' && atkStages.spAtk < 6) { atkStages.spAtk++; queueMsg(`${attName}'s Sp. Atk rose!`); }
         if (move.effect === 'heal25') { let hl = Math.floor(attacker.maxHP * 0.25); attacker.currentHP = Math.min(attacker.maxHP, attacker.currentHP + hl); queueMsg(`${attName} restored ${hl} HP.`); }
         if (move.effect === 'raiseSpd2' && atkStages.spd < 6) { atkStages.spd = Math.min(6, atkStages.spd + 2); queueMsg(`${attName}'s Speed sharply rose!`); }
         if (move.effect === 'dot12.5') {
-            if (isAttackerPlayer) { if (!window.gameState.battle.opponentOverdue) { window.gameState.battle.opponentOverdue = true; queueMsg(`${defName} is now Overdue!`); } }
-            else { if (!window.gameState.battle.playerOverdue) { window.gameState.battle.playerOverdue = true; queueMsg(`${defName} is now Overdue!`); } }
+            if (isAttackerPlayer) { if (!b.opponentOverdue) { b.opponentOverdue = true; queueMsg(`${defName} is now Overdue!`); } }
+            else { if (!b.playerOverdue) { b.playerOverdue = true; queueMsg(`${defName} is now Overdue!`); } }
         }
         if (move.effect === 'confuse' && randRoll < 0.20) {
-            if (isAttackerPlayer) { if (!window.gameState.battle.opponentConfused) { window.gameState.battle.opponentConfused = true; window.gameState.battle.opponentConfusedTurns = Math.floor(Math.random() * 4) + 1; queueMsg(`${defName} became confused!`); } }
-            else { if (!window.gameState.battle.playerConfused) { window.gameState.battle.playerConfused = true; window.gameState.battle.playerConfusedTurns = Math.floor(Math.random() * 4) + 1; queueMsg(`${defName} became confused!`); } }
+            if (isAttackerPlayer) { if (!b.opponentConfused) { b.opponentConfused = true; b.opponentConfusedTurns = Math.floor(Math.random() * 4) + 1; queueMsg(`${defName} became confused!`); } }
+            else { if (!b.playerConfused) { b.playerConfused = true; b.playerConfusedTurns = Math.floor(Math.random() * 4) + 1; queueMsg(`${defName} became confused!`); } }
         }
     }
 }
@@ -133,47 +152,100 @@ function executeBattleTurn(playerMoveId) {
     const pBook = b.playerBook;
     const oBook = b.opponent;
     const oMoveId = oBook.moves[Math.floor(Math.random() * oBook.moves.length)];
+    b.pendingOpponentMove = oMoveId;
+
     const pSpeed = getModifiedStat(pBook, b.playerStages, 'spd');
     const oSpeed = getModifiedStat(oBook, b.opponentStages, 'spd');
-    let playerFirst = pSpeed > oSpeed || (pSpeed === oSpeed && Math.random() < 0.5);
-
-    function handleConfusion(isPlayer) {
-        const name = isPlayer ? pBook.name : oBook.name;
-        const book = isPlayer ? pBook : oBook;
-        queueMsg(`${name} is confused…`);
-        if (Math.random() < 0.5) {
-            let selfDmg = Math.floor(((((2 * book.level / 5 + 2) * 40 * (book.stats.atk / book.stats.def)) / 50) + 2) * 0.9);
-            book.currentHP = Math.max(0, book.currentHP - selfDmg);
-            queueMsg(`It hurt itself in confusion! Took ${selfDmg} damage.`);
-            return false;
-        }
-        return true;
-    }
+    const playerFirst = pSpeed > oSpeed || (pSpeed === oSpeed && Math.random() < 0.5);
 
     if (playerFirst) {
-        let act = true;
-        if (b.playerConfused) { b.playerConfusedTurns--; if (b.playerConfusedTurns <= 0) { b.playerConfused = false; queueMsg(`${pBook.name} snapped out!`); } else act = handleConfusion(true); }
-        if (act && pBook.currentHP > 0) executeMove(playerMoveId, pBook, oBook, b.playerStages, b.opponentStages, pBook.name, oBook.name, true);
-        if (oBook.currentHP > 0) {
-            let oAct = true;
-            if (b.opponentConfused) { b.opponentConfusedTurns--; if (b.opponentConfusedTurns <= 0) { b.opponentConfused = false; queueMsg(`${oBook.name} snapped out!`); } else oAct = handleConfusion(false); }
-            if (oAct && oBook.currentHP > 0) executeMove(oMoveId, oBook, pBook, b.opponentStages, b.playerStages, oBook.name, pBook.name, false);
-        }
+        executeSingleMove(playerMoveId, pBook, oBook, b.playerStages, b.opponentStages, pBook.name, oBook.name, true, () => {
+            if (oBook.currentHP > 0) {
+                executeOpponentTurn();
+            } else {
+                advanceLog();
+            }
+        });
     } else {
-        let oAct = true;
-        if (b.opponentConfused) { b.opponentConfusedTurns--; if (b.opponentConfusedTurns <= 0) { b.opponentConfused = false; queueMsg(`${oBook.name} snapped out!`); } else oAct = handleConfusion(false); }
-        if (oAct && oBook.currentHP > 0) executeMove(oMoveId, oBook, pBook, b.opponentStages, b.playerStages, oBook.name, pBook.name, false);
-        if (pBook.currentHP > 0) {
-            let act = true;
-            if (b.playerConfused) { b.playerConfusedTurns--; if (b.playerConfusedTurns <= 0) { b.playerConfused = false; queueMsg(`${pBook.name} snapped out!`); } else act = handleConfusion(true); }
-            if (act && pBook.currentHP > 0) executeMove(playerMoveId, pBook, oBook, b.playerStages, b.opponentStages, pBook.name, oBook.name, true);
+        executeSingleMove(oMoveId, oBook, pBook, b.opponentStages, b.playerStages, oBook.name, pBook.name, false, () => {
+            if (pBook.currentHP > 0) {
+                executeSingleMove(playerMoveId, pBook, oBook, b.playerStages, b.opponentStages, pBook.name, oBook.name, true, () => {
+                    if (oBook.currentHP > 0) {
+                        applyEndOfTurnEffects();
+                        advanceLog();
+                    } else {
+                        advanceLog();
+                    }
+                });
+            } else {
+                applyEndOfTurnEffects();
+                advanceLog();
+            }
+        });
+    }
+}
+
+function executeOpponentTurn() {
+    const b = window.gameState.battle;
+    const pBook = b.playerBook;
+    const oBook = b.opponent;
+    const oMoveId = b.pendingOpponentMove;
+
+    executeSingleMove(oMoveId, oBook, pBook, b.opponentStages, b.playerStages, oBook.name, pBook.name, false, () => {
+        applyEndOfTurnEffects();
+        advanceLog();
+    });
+}
+
+function executeSingleMove(moveId, attacker, defender, atkStages, defStages, attName, defName, isAttackerPlayer, onComplete) {
+    const b = window.gameState.battle;
+    const isPlayer = (attacker === b.playerBook);
+
+    if (isPlayer ? b.playerConfused : b.opponentConfused) {
+        const turnsLeft = isPlayer ? b.playerConfusedTurns : b.opponentConfusedTurns;
+        if (turnsLeft > 0) {
+            if (isPlayer) b.playerConfusedTurns--;
+            else b.opponentConfusedTurns--;
+        }
+        if (turnsLeft <= 0) {
+            if (isPlayer) b.playerConfused = false;
+            else b.opponentConfused = false;
+            queueMsg(`${attName} snapped out of confusion!`);
+        } else {
+            queueMsg(`${attName} is confused…`);
+            if (Math.random() < 0.5) {
+                let selfDmg = Math.floor(((((2 * attacker.level / 5 + 2) * 40 * (attacker.stats.atk / attacker.stats.def)) / 50) + 2) * 0.9);
+                attacker.currentHP = Math.max(0, attacker.currentHP - selfDmg);
+                queueMsg(`It hurt itself in confusion! Took ${selfDmg} damage.`);
+                if (attacker.currentHP <= 0) {
+                    attacker.currentHP = 0;
+                    queueMsg(`${attName} fainted!`);
+                }
+                if (onComplete) onComplete();
+                return;
+            }
         }
     }
 
-    if (pBook.currentHP > 0 && b.playerOverdue) { let fine = Math.floor(pBook.maxHP / 8); pBook.currentHP = Math.max(0, pBook.currentHP - fine); queueMsg(`${pBook.name} took ${fine} overdue damage!`); }
-    if (oBook.currentHP > 0 && b.opponentOverdue) { let fine = Math.floor(oBook.maxHP / 8); oBook.currentHP = Math.max(0, oBook.currentHP - fine); queueMsg(`${oBook.name} took ${fine} overdue damage!`); }
+    executeMove(moveId, attacker, defender, atkStages, defStages, attName, defName, isAttackerPlayer);
+    if (onComplete) onComplete();
+}
 
-    advanceLog();
+function applyEndOfTurnEffects() {
+    const b = window.gameState.battle;
+    const pBook = b.playerBook;
+    const oBook = b.opponent;
+
+    if (pBook.currentHP > 0 && b.playerOverdue) {
+        let fine = Math.floor(pBook.maxHP / 8);
+        pBook.currentHP = Math.max(0, pBook.currentHP - fine);
+        queueMsg(`${pBook.name} took ${fine} overdue damage!`);
+    }
+    if (oBook.currentHP > 0 && b.opponentOverdue) {
+        let fine = Math.floor(oBook.maxHP / 8);
+        oBook.currentHP = Math.max(0, oBook.currentHP - fine);
+        queueMsg(`${oBook.name} took ${fine} overdue damage!`);
+    }
 }
 
 function processPlayerFaint() {
@@ -198,23 +270,18 @@ function processPlayerFaint() {
         advanceLog();
     }
 }
-// Award Rise‑Points
-let creditsEarned = 0;
-if (b.type === 'wild') {
-    creditsEarned = b.opponent.level * 5;
-} else {
-    creditsEarned = b.trainer.books.reduce((a, c) => a + c.level, 0) * 10;
-}
-window.gameState.credits += creditsEarned;
-queueMsg(`Earned ${creditsEarned} Rise‑Points!`);
 
-// Save after battle
 function processOpponentFaint() {
     const b = window.gameState.battle;
     if (b.processingFaint || b.battleOver) return;
     b.processingFaint = true;
 
     queueMsg(`${b.opponent.name} was defeated!`);
+
+    // Award Rise‑Points
+    let creditsEarned = b.type === 'wild' ? b.opponent.level * 5 : b.trainer.books.reduce((a, c) => a + c.level, 0) * 10;
+    window.gameState.credits += creditsEarned;
+    queueMsg(`Earned ${creditsEarned} Rise‑Points!`);
 
     // XP award
     let rawXP = b.type === 'wild' ? b.opponent.level * 20 : b.trainer.books.reduce((a, c) => a + c.level, 0) * 15;
@@ -259,7 +326,6 @@ function processOpponentFaint() {
                     book.stats.spAtk = nextTemplate.baseStats.spAtk + Math.floor(nextTemplate.baseStats.spAtk * 0.05 * (book.level - 1));
                     book.stats.spDef = nextTemplate.baseStats.spDef + Math.floor(nextTemplate.baseStats.spDef * 0.05 * (book.level - 1));
                     book.stats.spd = nextTemplate.baseStats.spd + Math.floor(nextTemplate.baseStats.spd * 0.05 * (book.level - 1));
-
                     book.currentHP = Math.round((book.currentHP / priorMax) * book.maxHP);
 
                     nextTemplate.moves.forEach(m => {
@@ -311,10 +377,6 @@ function handleEscapeAttempt() {
         const oMoveId = b.opponent.moves[Math.floor(Math.random() * b.opponent.moves.length)];
         executeMove(oMoveId, b.opponent, b.playerBook, b.opponentStages, b.playerStages, b.opponent.name, b.playerBook.name, false);
         advanceLog();
-    // Refresh the battle UI immediately so HP bars react in real time
-    if (window.gameState.activeBattleScene) {
-        window.gameState.activeBattleScene.updateUI();
-    }
     }
 }
 
@@ -330,14 +392,11 @@ function handleBorrowAttempt() {
     const catchRate = opp.catchRate || 100;
     const maxHP = opp.maxHP;
     const currentHP = opp.currentHP;
-
-    // Gen 1 capture formula: ((3*MaxHP - 2*CurrentHP) * CatchRate) / (3*MaxHP)
     const rate = ((3 * maxHP - 2 * currentHP) * catchRate) / (3 * maxHP);
     const success = Math.random() * 100 < rate;
 
     if (success) {
         queueMsg(`Gotcha! ${opp.name} was checked out!`);
-
         if (window.gameState.backpack.length < 6) {
             window.gameState.backpack.push(opp);
             queueMsg(`${opp.name} was added to your backpack.`);
@@ -345,11 +404,8 @@ function handleBorrowAttempt() {
             window.gameState.libraryAccount.push(opp);
             queueMsg(`Backpack full! ${opp.name} was sent to your Library Account.`);
         }
-
         b.battleOver = true;
         advanceLog();
-
-        // Automatically return to overworld after a short pause (no key press needed)
         setTimeout(() => {
             if (window.gameState.activeBattleScene) {
                 window.gameState.activeBattleScene.returnToOverworld();
@@ -358,8 +414,7 @@ function handleBorrowAttempt() {
     } else {
         queueMsg('Oh no! It broke free!');
         const oMoveId = b.opponent.moves[Math.floor(Math.random() * b.opponent.moves.length)];
-        executeMove(oMoveId, b.opponent, b.playerBook, b.opponentStages, b.playerStages,
-                   opp.name, b.playerBook.name, false);
+        executeMove(oMoveId, b.opponent, b.playerBook, b.opponentStages, b.playerStages, opp.name, b.playerBook.name, false);
         advanceLog();
     }
 }
@@ -374,7 +429,6 @@ function processDirectSwap(idx) {
     b.playerStages = { atk:0, def:0, spAtk:0, spDef:0, spd:0 };
     b.playerConfused = false;
     b.playerOverdue = false;
-
     const oMoveId = b.opponent.moves[Math.floor(Math.random() * b.opponent.moves.length)];
     executeMove(oMoveId, b.opponent, b.playerBook, b.opponentStages, b.playerStages, b.opponent.name, b.playerBook.name, false);
     advanceLog();
