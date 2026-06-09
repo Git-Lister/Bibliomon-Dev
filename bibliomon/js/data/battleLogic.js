@@ -1,4 +1,4 @@
-// ── BATTLE LOGIC (ported from Phase 5) ──────────────────────────────────────
+// ── BATTLE LOGIC (ported from Phase 5, corrected flow) ──────────────────────
 
 function queueMsg(msg) {
     if (window.gameState.battle) window.gameState.battle.log.push(msg);
@@ -10,15 +10,7 @@ function advanceLog() {
 
     if (b.log.length > 0) {
         const next = b.log.shift();
-
-        // If the next item is a function, execute it immediately and continue
-        if (typeof next === 'function') {
-            next();
-            advanceLog();
-            return;
-        }
-
-        // Otherwise it's a normal message
+        // Only strings go into the log now – no more functions
         b.currentMsg = next;
         b.menuMode = 'message';
         if (b.log.length > 0) {
@@ -74,19 +66,30 @@ function executeMove(moveId, attacker, defender, atkStages, defStages, attName, 
     const move = MOVES[moveId];
     const b = window.gameState.battle;
 
-    queueMsg(`${attName} used ${move.name}!`);
-
-    if (move.effect !== 'neverMiss' && Math.random() > move.accuracy) {
-        queueMsg('But it missed!');
-        return;
+    // Step 1 – Show the move name immediately
+    b.currentMsg = `${attName} used ${move.name}!`;
+    b.menuMode = 'message';
+    if (window.gameState.activeBattleScene) {
+        window.gameState.activeBattleScene.updateUI();
     }
 
-    // Calculate damage once for effectiveness text
-    let dmgResult = calculateDamage(move, attacker, defender, atkStages, defStages);
+    // Step 2 – After a short pause, apply damage and show the result
+    setTimeout(() => {
+        if (move.effect !== 'neverMiss' && Math.random() > move.accuracy) {
+            b.currentMsg = 'But it missed!';
+            if (window.gameState.activeBattleScene) window.gameState.activeBattleScene.updateUI();
+            if (b._onMoveComplete) {
+                const cb = b._onMoveComplete;
+                b._onMoveComplete = null;
+                cb();
+            }
+            return;
+        }
 
-    if (move.power > 0) {
-        // Queue the damage step as a function so it runs when this message is displayed
-        queueMsg(function() {
+        let dmgResult = calculateDamage(move, attacker, defender, atkStages, defStages);
+        let msg = '';
+
+        if (move.power > 0) {
             let hits = 1;
             if (move.effect === 'multi2to5') hits = Math.floor(Math.random() * 4) + 2;
 
@@ -98,53 +101,59 @@ function executeMove(moveId, attacker, defender, atkStages, defStages, attName, 
                 if (defender.currentHP <= 0) break;
             }
 
-            if (hits > 1) queueMsg(`Hit ${hits} times! Total damage: ${totalDmg}.`);
-            else queueMsg(`Dealt ${totalDmg} damage.`);
+            msg = hits > 1 ? `Hit ${hits} times! Total damage: ${totalDmg}.` : `Dealt ${totalDmg} damage.`;
 
-            if (dmgResult.eff > 1) queueMsg('Super effective!');
-            if (dmgResult.eff < 1) queueMsg('Not very effective…');
+            if (dmgResult.eff > 1) msg += ' Super effective!';
+            if (dmgResult.eff < 1) msg += ' Not very effective…';
 
             if (move.effect === 'recoil33') {
                 let rec = Math.floor(totalDmg * 0.33);
                 attacker.currentHP = Math.max(0, attacker.currentHP - rec);
-                queueMsg(`${attName} took ${rec} recoil damage!`);
+                msg += ` ${attName} took ${rec} recoil damage!`;
             }
             if (move.effect === 'drain50') {
                 let drn = Math.floor(totalDmg * 0.50);
                 attacker.currentHP = Math.min(attacker.maxHP, attacker.currentHP + drn);
-                queueMsg(`${attName} restored ${drn} HP.`);
+                msg += ` ${attName} restored ${drn} HP.`;
             }
+        }
 
-            // Refresh UI after HP change
-            if (window.gameState.activeBattleScene) {
-                window.gameState.activeBattleScene.updateUI();
+        // Status effects (only if defender survived)
+        if (defender.currentHP > 0 && move.effect) {
+            const randRoll = Math.random();
+            if (move.effect === 'lowerSpDef' && randRoll < 0.10 && defStages.spDef > -6) { defStages.spDef--; }
+            if (move.effect === 'raiseAtk' && atkStages.atk < 6) { atkStages.atk++; }
+            if (move.effect === 'lowerAtk' && defStages.atk > -6) { defStages.atk--; }
+            if (move.effect === 'overdue10' && randRoll < 0.10) {
+                if (isAttackerPlayer) { if (!b.opponentOverdue) { b.opponentOverdue = true; msg += ` ${defName} is Overdue!`; } }
+                else { if (!b.playerOverdue) { b.playerOverdue = true; msg += ` ${defName} is Overdue!`; } }
             }
-        });
-    }
+            if (move.effect === 'raiseDef' && atkStages.def < 6) { atkStages.def++; }
+            if (move.effect === 'raiseSpAtk' && atkStages.spAtk < 6) { atkStages.spAtk++; }
+            if (move.effect === 'heal25') { let hl = Math.floor(attacker.maxHP * 0.25); attacker.currentHP = Math.min(attacker.maxHP, attacker.currentHP + hl); msg += ` ${attName} restored ${hl} HP.`; }
+            if (move.effect === 'raiseSpd2' && atkStages.spd < 6) { atkStages.spd = Math.min(6, atkStages.spd + 2); }
+            if (move.effect === 'dot12.5') {
+                if (isAttackerPlayer) { if (!b.opponentOverdue) { b.opponentOverdue = true; msg += ` ${defName} is now Overdue!`; } }
+                else { if (!b.playerOverdue) { b.playerOverdue = true; msg += ` ${defName} is now Overdue!`; } }
+            }
+            if (move.effect === 'confuse' && randRoll < 0.20) {
+                if (isAttackerPlayer) { if (!b.opponentConfused) { b.opponentConfused = true; b.opponentConfusedTurns = Math.floor(Math.random() * 4) + 1; msg += ` ${defName} became confused!`; } }
+                else { if (!b.playerConfused) { b.playerConfused = true; b.playerConfusedTurns = Math.floor(Math.random() * 4) + 1; msg += ` ${defName} became confused!`; } }
+            }
+        }
 
-    // Status effects are still applied immediately (they don't affect HP directly)
-    if (defender.currentHP > 0 && move.effect) {
-        const randRoll = Math.random();
-        if (move.effect === 'lowerSpDef' && randRoll < 0.10 && defStages.spDef > -6) { defStages.spDef--; queueMsg(`${defName}'s Sp. Def fell!`); }
-        if (move.effect === 'raiseAtk' && atkStages.atk < 6) { atkStages.atk++; queueMsg(`${attName}'s Attack rose!`); }
-        if (move.effect === 'lowerAtk' && defStages.atk > -6) { defStages.atk--; queueMsg(`${defName}'s Attack fell!`); }
-        if (move.effect === 'overdue10' && randRoll < 0.10) {
-            if (isAttackerPlayer) { if (!b.opponentOverdue) { b.opponentOverdue = true; queueMsg(`${defName} is Overdue!`); } }
-            else { if (!b.playerOverdue) { b.playerOverdue = true; queueMsg(`${defName} is Overdue!`); } }
+        b.currentMsg = msg;
+        if (window.gameState.activeBattleScene) {
+            window.gameState.activeBattleScene.updateUI();
         }
-        if (move.effect === 'raiseDef' && atkStages.def < 6) { atkStages.def++; queueMsg(`${attName}'s Defense rose!`); }
-        if (move.effect === 'raiseSpAtk' && atkStages.spAtk < 6) { atkStages.spAtk++; queueMsg(`${attName}'s Sp. Atk rose!`); }
-        if (move.effect === 'heal25') { let hl = Math.floor(attacker.maxHP * 0.25); attacker.currentHP = Math.min(attacker.maxHP, attacker.currentHP + hl); queueMsg(`${attName} restored ${hl} HP.`); }
-        if (move.effect === 'raiseSpd2' && atkStages.spd < 6) { atkStages.spd = Math.min(6, atkStages.spd + 2); queueMsg(`${attName}'s Speed sharply rose!`); }
-        if (move.effect === 'dot12.5') {
-            if (isAttackerPlayer) { if (!b.opponentOverdue) { b.opponentOverdue = true; queueMsg(`${defName} is now Overdue!`); } }
-            else { if (!b.playerOverdue) { b.playerOverdue = true; queueMsg(`${defName} is now Overdue!`); } }
+
+        // Step 3 – Signal completion so the turn continues
+        if (b._onMoveComplete) {
+            const cb = b._onMoveComplete;
+            b._onMoveComplete = null;
+            cb();
         }
-        if (move.effect === 'confuse' && randRoll < 0.20) {
-            if (isAttackerPlayer) { if (!b.opponentConfused) { b.opponentConfused = true; b.opponentConfusedTurns = Math.floor(Math.random() * 4) + 1; queueMsg(`${defName} became confused!`); } }
-            else { if (!b.playerConfused) { b.playerConfused = true; b.playerConfusedTurns = Math.floor(Math.random() * 4) + 1; queueMsg(`${defName} became confused!`); } }
-        }
-    }
+    }, 1000); // 1 second to read the move name
 }
 
 function executeBattleTurn(playerMoveId) {
@@ -184,6 +193,15 @@ function executeBattleTurn(playerMoveId) {
         });
     }
 }
+function showThinkingAndPause(bookName, callback) {
+    const b = window.gameState.battle;
+    b.currentMsg = `${bookName} is thinking…`;
+    b.menuMode = 'message';
+    if (window.gameState.activeBattleScene) {
+        window.gameState.activeBattleScene.updateUI();
+    }
+    setTimeout(callback, 800);   // 0.8 second pause – feels natural
+}
 
 function executeOpponentTurn() {
     const b = window.gameState.battle;
@@ -191,16 +209,21 @@ function executeOpponentTurn() {
     const oBook = b.opponent;
     const oMoveId = b.pendingOpponentMove;
 
-    executeSingleMove(oMoveId, oBook, pBook, b.opponentStages, b.playerStages, oBook.name, pBook.name, false, () => {
-        applyEndOfTurnEffects();
-        advanceLog();
+    showThinkingAndPause(oBook.name, () => {
+        executeSingleMove(oMoveId, oBook, pBook, b.opponentStages, b.playerStages, oBook.name, pBook.name, false, () => {
+            applyEndOfTurnEffects();
+            advanceLog();
+        });
     });
 }
 
 function executeSingleMove(moveId, attacker, defender, atkStages, defStages, attName, defName, isAttackerPlayer, onComplete) {
     const b = window.gameState.battle;
+    b._onMoveComplete = onComplete;
+
     const isPlayer = (attacker === b.playerBook);
 
+    // Confusion check
     if (isPlayer ? b.playerConfused : b.opponentConfused) {
         const turnsLeft = isPlayer ? b.playerConfusedTurns : b.opponentConfusedTurns;
         if (turnsLeft > 0) {
@@ -210,16 +233,22 @@ function executeSingleMove(moveId, attacker, defender, atkStages, defStages, att
         if (turnsLeft <= 0) {
             if (isPlayer) b.playerConfused = false;
             else b.opponentConfused = false;
-            queueMsg(`${attName} snapped out of confusion!`);
+            b.currentMsg = `${attName} snapped out of confusion!`;
+            if (window.gameState.activeBattleScene) window.gameState.activeBattleScene.updateUI();
+            if (onComplete) onComplete();
+            return;
         } else {
-            queueMsg(`${attName} is confused…`);
+            b.currentMsg = `${attName} is confused…`;
+            if (window.gameState.activeBattleScene) window.gameState.activeBattleScene.updateUI();
             if (Math.random() < 0.5) {
                 let selfDmg = Math.floor(((((2 * attacker.level / 5 + 2) * 40 * (attacker.stats.atk / attacker.stats.def)) / 50) + 2) * 0.9);
                 attacker.currentHP = Math.max(0, attacker.currentHP - selfDmg);
-                queueMsg(`It hurt itself in confusion! Took ${selfDmg} damage.`);
+                b.currentMsg = `It hurt itself in confusion! Took ${selfDmg} damage.`;
+                if (window.gameState.activeBattleScene) window.gameState.activeBattleScene.updateUI();
                 if (attacker.currentHP <= 0) {
                     attacker.currentHP = 0;
-                    queueMsg(`${attName} fainted!`);
+                    b.currentMsg = `${attName} fainted!`;
+                    if (window.gameState.activeBattleScene) window.gameState.activeBattleScene.updateUI();
                 }
                 if (onComplete) onComplete();
                 return;
@@ -228,7 +257,6 @@ function executeSingleMove(moveId, attacker, defender, atkStages, defStages, att
     }
 
     executeMove(moveId, attacker, defender, atkStages, defStages, attName, defName, isAttackerPlayer);
-    if (onComplete) onComplete();
 }
 
 function applyEndOfTurnEffects() {
