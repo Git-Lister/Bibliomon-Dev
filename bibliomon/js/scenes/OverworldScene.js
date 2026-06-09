@@ -156,42 +156,54 @@ if (hasSave) {
         this.escKey   = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.ESC);
     }
 
-    openShop(shopId) {
-        const shop = SHOPS[shopId];
-        if (!shop) return;
+openShop(shopId) {
+    const shop = SHOPS[shopId];
+    if (!shop) return;
 
-        const itemList = shop.items.map(i => {
-            const item = ITEM_DATA[i.itemId];
-            return `${item.name}  £${i.price}`;
-        });
+    const scene = this;   // capture the scene for use inside the callback
 
-        this.scene.launch('Dialogue', {
-            text: `Welcome to the ${shop.name}! What would you like?`,
-            choices: [...itemList, 'Cancel'],
-            choiceCallback: (choice) => {
-                if (choice === 'cancel') return;
-                const idx = itemList.findIndex(t => t.toLowerCase() === choice);
-                if (idx >= 0) {
-                    const selected = shop.items[idx];
-                    if (this.gameState.credits >= selected.price) {
-                        let slot = this.gameState.items.find(i => i.itemId === selected.itemId);
-                        if (!slot) { slot = { itemId: selected.itemId, qty: 0 }; this.gameState.items.push(slot); }
-                        if (slot.qty >= 20) {
-                            this.showMessage('Inventory full for that item.');
-                            return;
-                        }
-                        this.gameState.credits -= selected.price;
-                        slot.qty++;
-                        saveGameData();
-                        this.showMessage(`Purchased ${ITEM_DATA[selected.itemId].name}!`);
-                    } else {
-                        this.showMessage('Not enough Rise‑Points.');
+    const itemList = shop.items.map(i => {
+        const item = ITEM_DATA[i.itemId];
+        return `${item.name}  £${i.price}`;
+    });
+
+    scene.scene.launch('Dialogue', {
+        text: `Welcome to the ${shop.name}! What would you like?`,
+        choices: [...itemList, 'Cancel'],
+        choiceCallback: (choice) => {
+            if (choice === 'cancel') return;
+
+            const idx = itemList.findIndex(t => t.toLowerCase() === choice);
+            if (idx >= 0) {
+                const selected = shop.items[idx];
+                if (scene.gameState.credits >= selected.price) {
+                    let slot = scene.gameState.items.find(i => i.itemId === selected.itemId);
+                    if (!slot) {
+                        slot = { itemId: selected.itemId, qty: 0 };
+                        scene.gameState.items.push(slot);
                     }
+                    if (slot.qty >= 20) {
+                        scene.time.delayedCall(100, () => {
+                            scene.showMessage('Inventory full for that item.');
+                        });
+                        return;
+                    }
+                    scene.gameState.credits -= selected.price;
+                    slot.qty++;
+                    saveGameData();
+                    scene.time.delayedCall(100, () => {
+                        scene.showMessage(`Purchased ${ITEM_DATA[selected.itemId].name}!`);
+                    });
+                } else {
+                    scene.time.delayedCall(100, () => {
+                        scene.showMessage('Not enough Rise‑Points.');
+                    });
                 }
             }
-        });
-        this.scene.pause();
-    }
+        }
+    });
+    scene.scene.pause();
+}
 
     attemptMove(dx, dy) {
         const p = this.gameState.player;
@@ -204,7 +216,32 @@ if (hasSave) {
         const nextRow = p.tileY + dy;
         const tile = this.getTileAt(nextCol, nextRow);
 
-        if (tile === 'W' || tile === 'H' || tile === 'Z' || tile === 'V' || tile === 'C') return;
+        if (tile === 'W' || tile === 'H' || tile === 'Z' || tile === 'R' || tile === 'O') return;
+        if (tile === 'R') {
+        if (this.gameState.player.facing !== 'up') {
+            this.showMessage('The reception desk is staffed from the front.');
+            return;
+        }
+        if (this.gameState.cardValidated) {
+            this.showMessage('Your Library Card is already valid. Welcome!');
+            return;
+        }
+        this.scene.launch('Dialogue', {
+            text: '"Good morning! May I see your Library Card?"',
+            choices: ['Yes', 'Not yet'],
+            choiceCallback: (choice) => {
+                if (choice === 'yes') {
+                    this.gameState.cardValidated = true;
+                    saveGameData();
+                    this.showMessage('Your Library Card has been validated. The gates are now open.');
+                } else {
+                    this.showMessage('Please come back when you have your card.');
+                }
+            }
+        });
+        this.scene.pause();
+        return;
+    }
         if (tile === 'B' && !this.gameState.puzzleSolved) {
             this.showMessage('The barrier is locked. Solve the puzzle first.');
             return;
@@ -215,6 +252,10 @@ if (hasSave) {
         }
         if (tile === 'E') {
             this.handleStairs();
+            return;
+        }
+        if (tile === 'Y' && !this.gameState.cardValidated) {
+            this.showMessage('The security gate is locked. Validate your card at Reception first.');
             return;
         }
 

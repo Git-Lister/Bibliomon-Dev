@@ -108,7 +108,10 @@ class BootScene extends Phaser.Scene {
             { char: 'P<', color: '#0ea5e9'                      },   // Spin tile (left arrow)
             { char: 'P^', color: '#0ea5e9'                      },   // Spin tile (up arrow)
             { char: 'Pv', color: '#0ea5e9'                      },   // Spin tile (down arrow)
-            { char: 'Z', color: '#fafaf9', detail: 'staff'      }    // Staff member (decorative)
+            { char: 'Z', color: '#fafaf9', detail: 'staff'      },    // Staff member (decorative)
+            { char: 'R', color: '#1e3a8a', detail: 'reception'  },   // Reception desk
+            { char: 'Y', color: '#7f1d1d', detail: 'gate'       },   // Locked gate (e.g. for gym)
+            { char: 'O', color: '#2d5a27', detail: 'plant'      },   // Potted plant (decorative)
         ];
 
         tileDefs.forEach((def, index) => {
@@ -170,6 +173,30 @@ class BootScene extends Phaser.Scene {
                 ctx.beginPath();
                 ctx.arc(x + 8, y + 4, 1, 0, Math.PI);
                 ctx.stroke();
+            } else if (def.detail === 'reception') {
+                ctx.fillStyle = '#1e3a8a';
+                ctx.fillRect(x, y, tileSize, tileSize);
+                ctx.fillStyle = '#3b82f6';
+                ctx.fillRect(x + 2, y + 2, tileSize - 4, 4);
+            } else if (def.detail === 'gate') {
+                ctx.fillStyle = '#7f1d1d';
+                ctx.fillRect(x, y, tileSize, tileSize);
+                ctx.strokeStyle = '#ffffff';
+                ctx.lineWidth = 1;
+                ctx.strokeRect(x + 3, y + 3, tileSize - 6, tileSize - 6);
+                ctx.beginPath();
+                ctx.moveTo(x + 2, y + 2);
+                ctx.lineTo(x + tileSize - 2, y + tileSize - 2);
+                ctx.moveTo(x + tileSize - 2, y + 2);
+                ctx.lineTo(x + 2, y + tileSize - 2);
+                ctx.stroke();
+            } else if (def.detail === 'plant') {
+                ctx.fillStyle = '#8B4513';
+                ctx.fillRect(x + 4, y + 10, 8, 6);
+                ctx.fillStyle = '#2d5a27';
+                ctx.beginPath();
+                ctx.arc(x + 8, y + 7, 5, 0, Math.PI * 2);
+                ctx.fill();
             }
 
             // Store the tile index mapping

@@ -18,17 +18,31 @@ class DialogueScene extends Phaser.Scene {
     create() {
         this.bg = this.add.rectangle(320, 240, 640, 480, 0x000000, 0.3).setOrigin(0.5);
 
-        const boxX = 20, boxY = 330, boxW = 600, boxH = 130;
+        const boxX = 20;
+        const boxW = 600;
+        const lineH = 20;            // height of one choice line
+        const baseH = 90;            // space for the message text + padding
+        const choicesCount = this.choices ? this.choices.length : 0;
+        const choicesH = choicesCount * lineH;
+        const boxH = baseH + choicesH + 20;
+        const boxY = 480 - boxH - 10;   // always at the bottom
+
+        // Outer border (white)
         const outer = this.add.graphics();
         outer.lineStyle(2, 0xffffff, 1);
         outer.strokeRect(boxX, boxY, boxW, boxH);
+
+        // Inner border
         const inner = this.add.graphics();
         inner.lineStyle(1, 0x888888, 1);
         inner.strokeRect(boxX + 4, boxY + 4, boxW - 8, boxH - 8);
+
+        // Fill
         const fill = this.add.graphics();
         fill.fillStyle(0x000000, 0.9);
         fill.fillRect(boxX + 5, boxY + 5, boxW - 10, boxH - 10);
 
+        // Main dialogue text
         this.dialogueText = this.add.text(boxX + 12, boxY + 12, '', {
             fontFamily: 'monospace', fontSize: '12px', fill: '#ffffff',
             wordWrap: { width: boxW - 24 }
@@ -38,24 +52,24 @@ class DialogueScene extends Phaser.Scene {
             fontFamily: 'monospace', fontSize: '12px', fill: '#ffffff'
         }).setVisible(false);
 
-        // If choices exist, create them now (hidden until typewriter finishes)
+        // Choice texts (if any)
         if (this.choices) {
-            this.choices.forEach((c, i) => {
-                const txt = this.add.text(boxX + 20, boxY + 60 + i * 24,
+            this.choiceTexts = this.choices.map((c, i) => {
+                const txt = this.add.text(boxX + 20, boxY + 50 + i * lineH,
                     (i === 0 ? '▶ ' : '  ') + c,
                     { fontFamily: 'monospace', fontSize: '12px', fill: '#ffffff' });
                 txt.setVisible(false);
-                this.choiceTexts.push(txt);
+                return txt;
             });
         }
 
         this.typeNextChar();
 
-        // Input
+        // Input handling (unchanged – keep your existing keyboard events)
         this.input.keyboard.on('keydown-SPACE', () => this.onConfirm());
         this.input.keyboard.on('keydown-ENTER', () => this.onConfirm());
-        this.input.keyboard.on('keydown-ESC', () => this.onConfirm());
-        this.input.keyboard.on('keydown-UP', () => this.changeChoice(-1));
+        this.input.keyboard.on('keydown-ESC',  () => this.onConfirm());
+        this.input.keyboard.on('keydown-UP',   () => this.changeChoice(-1));
         this.input.keyboard.on('keydown-DOWN', () => this.changeChoice(1));
         this.input.on('pointerdown', () => this.onConfirm());
     }

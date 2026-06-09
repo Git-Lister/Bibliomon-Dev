@@ -25,6 +25,7 @@ window.saveGameData = function() {
             facing: state.player.facing
         },
         backpack: state.backpack,
+        cardValidated: state.cardValidated,
         libraryAccount: state.libraryAccount,
         items: state.items,
         credits: state.credits,
@@ -50,6 +51,7 @@ window.loadGameData = function() {
         state.player.tileY = saved.player?.tileY || 29;
         state.player.facing = saved.player?.facing || 'down';
         state.backpack = saved.backpack || [];
+        state.cardValidated = saved.cardValidated || false;
         state.libraryAccount = saved.libraryAccount || [];
         state.items = saved.items || [];
         state.credits = saved.credits || 100;
@@ -80,6 +82,8 @@ window.gameState = {
         moveTween: null
     },
     backpack: [],
+    credits: 100,                    // ← add here
+    collectedItems: [],              // ← add here
     libraryAccount: [],
     items: [
         { itemId: 'potion', qty: 3 },
@@ -91,6 +95,7 @@ window.gameState = {
     activeBookIndex: 0,
     battle: null,
     defeatedTrainers: [],
+    cardValidated: false,
     puzzleSolved: false,
     inputLocked: false,
     gym1Defeated: false,
@@ -105,8 +110,9 @@ window.gameState = {
     startTime: Date.now(),
     savedPlayTime: 0,
     trainerMap: {},
-    hiddenItems: [
-    { x: 18, y: 23, itemId: 'potion', qty: 1 },    // example – you can change coords
-    { x: 10, y: 13, itemId: 'super_potion', qty: 1 }
+hiddenItems: [
+    { x: 30, y: 24, itemId: 'potion', qty: 1 },    // near ornament at row24 col30
+    { x: 3,  y: 26, itemId: 'antidote', qty: 1 },   // near ornament at row26 col3
+    { x: 28, y: 11, itemId: 'awakening', qty: 1 }   // near ornament at row11 col28
 ]
 };
