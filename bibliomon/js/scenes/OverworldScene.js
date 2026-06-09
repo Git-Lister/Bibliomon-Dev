@@ -204,7 +204,7 @@ if (hasSave) {
         const nextRow = p.tileY + dy;
         const tile = this.getTileAt(nextCol, nextRow);
 
-        if (tile === 'W' || tile === 'H' || tile === 'Z') return;
+        if (tile === 'W' || tile === 'H' || tile === 'Z' || tile === 'V' || tile === 'C') return;
         if (tile === 'B' && !this.gameState.puzzleSolved) {
             this.showMessage('The barrier is locked. Solve the puzzle first.');
             return;
@@ -403,8 +403,16 @@ if (hasSave) {
             saveGameData();
             this.showMessage('Kitchenette break! Party healed and game saved.');
         } else if (tile === 'V') {
+            if (this.gameState.player.facing !== 'up') {
+                this.showMessage('The vending machine only works from the front.');
+                return;
+            }
             this.openShop('vending');
         } else if (tile === 'C') {
+            if (this.gameState.player.facing !== 'up') {
+                this.showMessage('The café counter is staffed from the front.');
+                return;
+            }
             this.openShop('cafe');
         } else if (tile === 'L') {
             this.showMessage('Opening Library Account…', () => {
