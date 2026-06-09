@@ -20,4 +20,3 @@ const GYM1_LEADER = {
 };
 
 // Trainer map for ground floor (populated later)
-window.gameState.trainerMap = {};

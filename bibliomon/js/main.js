@@ -25,6 +25,7 @@ window.saveGameData = function() {
             facing: state.player.facing
         },
         backpack: state.backpack,
+        trainerMap: {},
         cardValidated: state.cardValidated,
         libraryAccount: state.libraryAccount,
         items: state.items,

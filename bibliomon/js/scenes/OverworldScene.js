@@ -115,6 +115,9 @@ if (hasSave) {
         for (let r = 0; r < mapData.length; r++) {
             for (let c = 0; c < mapData[r].length; c++) {
                 let tileChar = mapData[r][c];
+                if (tileChar === 'Y' && this.gameState.cardValidated) {
+                        tileChar = '.';   // draw as normal floor
+                }
                 if (tileChar === '.') continue;
                 if (tileChar.startsWith('P') && tileChar.length === 2) {
                     tileChar = tileChar;
@@ -202,7 +205,9 @@ openShop(shopId) {
             }
         }
     });
-    scene.scene.pause();
+    if (scene.scene.isActive('Overworld')) {
+        scene.scene.pause();
+    }
 }
 
     attemptMove(dx, dy) {
@@ -216,32 +221,16 @@ openShop(shopId) {
         const nextRow = p.tileY + dy;
         const tile = this.getTileAt(nextCol, nextRow);
 
-        if (tile === 'W' || tile === 'H' || tile === 'Z' || tile === 'R' || tile === 'O') return;
-        if (tile === 'R') {
-        if (this.gameState.player.facing !== 'up') {
-            this.showMessage('The reception desk is staffed from the front.');
+        // Solid tiles
+        if (tile === 'W' || tile === 'H' || tile === 'Z' ||
+            tile === 'R' || tile === 'O' || tile === 'V' || tile === 'C') return;
+
+        // Security gates (solid until validated)
+        if (tile === 'Y' && !this.gameState.cardValidated) {
+            this.showMessage('The security gate is locked. Validate your card at Reception first.');
             return;
         }
-        if (this.gameState.cardValidated) {
-            this.showMessage('Your Library Card is already valid. Welcome!');
-            return;
-        }
-        this.scene.launch('Dialogue', {
-            text: '"Good morning! May I see your Library Card?"',
-            choices: ['Yes', 'Not yet'],
-            choiceCallback: (choice) => {
-                if (choice === 'yes') {
-                    this.gameState.cardValidated = true;
-                    saveGameData();
-                    this.showMessage('Your Library Card has been validated. The gates are now open.');
-                } else {
-                    this.showMessage('Please come back when you have your card.');
-                }
-            }
-        });
-        this.scene.pause();
-        return;
-    }
+
         if (tile === 'B' && !this.gameState.puzzleSolved) {
             this.showMessage('The barrier is locked. Solve the puzzle first.');
             return;
@@ -252,10 +241,6 @@ openShop(shopId) {
         }
         if (tile === 'E') {
             this.handleStairs();
-            return;
-        }
-        if (tile === 'Y' && !this.gameState.cardValidated) {
-            this.showMessage('The security gate is locked. Validate your card at Reception first.');
             return;
         }
 
@@ -375,7 +360,7 @@ openShop(shopId) {
             default: return null;
         }
     }
-
+        // ── Dialogue handling (moved from DialogueScene for better map interaction) ─────
     handleInteraction() {
         const p = this.gameState.player;
         let tx = p.tileX, ty = p.tileY;
@@ -386,7 +371,7 @@ openShop(shopId) {
             case 'right': tx++; break;
         }
 
-        // ── Hidden item check (before any tile logic) ──
+        // ── Hidden item check (no tile needed) ──────────────────────────────
         const hidden = this.gameState.hiddenItems.find(h => h.x === tx && h.y === ty && h.qty > 0);
         if (hidden) {
             hidden.qty--;
@@ -404,6 +389,35 @@ openShop(shopId) {
 
         const tile = this.getTileAt(tx, ty);
 
+        // ── Reception desk ─────────────────────────────────────────────────
+        if (tile === 'R') {
+            if (this.gameState.player.facing !== 'left') {
+                this.showMessage('The reception desk is staffed from the front.');
+                return;
+            }
+            if (this.gameState.cardValidated) {
+                this.showMessage('Your Library Card is already valid. Welcome!');
+                return;
+            }
+            this.scene.launch('Dialogue', {
+                text: '"Good morning! May I see your Library Card?"',
+                choices: ['Yes', 'Not yet'],
+                choiceCallback: (choice) => {
+                    if (choice === 'yes') {
+                        this.gameState.cardValidated = true;
+                        saveGameData();
+                        // Immediately update the map to show open gates
+                        this.refreshGates();
+                    }
+                    // No extra message – the dialogue already says "Your Library Card has been validated."
+                }
+            });
+            if (this.scene.isActive('Overworld')) {
+                this.scene.pause();
+            }
+            return;
+        }
+        // ── Help-Desk (healing and account access) ─────────────────────────────
         if (tile === 'H') {
             this.scene.launch('Dialogue', {
                 text: '"Hello! Welcome to the Library. Would you like me to check your books?"',
@@ -430,7 +444,9 @@ openShop(shopId) {
                     }
                 }
             });
-            this.scene.pause();
+            if (this.scene.isActive('Overworld')) {
+                this.scene.pause();
+            }
             return;
         }
 
@@ -478,7 +494,10 @@ openShop(shopId) {
                 if (callback) callback();
             }
         });
-        this.scene.pause();
+        // Only pause if the Overworld scene is still running
+        if (this.scene.isActive('Overworld')) {
+            this.scene.pause();
+        }
     }
 
     startGymChallenge() {
