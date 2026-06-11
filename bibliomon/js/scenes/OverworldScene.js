@@ -310,8 +310,8 @@ class OverworldScene extends Phaser.Scene {
             }
         }
 
-        // ── Intro trigger (just north of entry gate) ────────────────────
-        const introTiles = [{x: 16, y: 22}];
+        // ── Intro trigger (first step into the library proper) ──────────────────────
+        const introTiles = [{x:1, y:22}, {x:2, y:22}];
         const trigger = introTiles.find(t => t.x === col && t.y === row);
         if (trigger && !this.gameState.introCompleted &&
             this.gameState.cardValidated && this.gameState.backpack.length === 0) {
