@@ -46,11 +46,6 @@ class OverworldScene extends Phaser.Scene {
             return;
         }
 
-        // Starter book
-        if (this.gameState.backpack.length === 0) {
-            this.gameState.backpack.push(createBookInstance('norton_anthology_base', 5));
-        }
-
         // Entrance scanner
         const p = this.gameState.player;
         if (p.tileX === undefined || p.tileY === undefined || (p.tileX === 0 && p.tileY === 0)) {
@@ -225,9 +220,28 @@ class OverworldScene extends Phaser.Scene {
         if (tile === 'W' || tile === 'H' || tile === 'Z' ||
             tile === 'R' || tile === 'O' || tile === 'V' || tile === 'C') return;
 
-        if (tile === 'Y' && !this.gameState.cardValidated) {
-            this.showMessage('The security gate is locked. Validate your card at Reception first.');
-            return;
+        if (tile === 'Y') {
+            const col = nextCol;   // the column the player is trying to step onto
+            const isEntryGate = (col >= 10 && col <= 11);
+            const isExitGate  = (col >= 22 && col <= 23);
+
+            if (!isEntryGate && !isExitGate) return;   // safety, shouldn't happen
+
+            if (!this.gameState.cardValidated) {
+                this.showMessage('The security gate is locked. Validate your card at Reception first.');
+                return;
+            }
+
+            // Check direction
+            if (isEntryGate && dy !== -1) {   // entry gates require moving north (dy = -1)
+                this.showMessage('Please use the entrance gates to enter the library.');
+                return;
+            }
+            if (isExitGate && dy !== 1) {    // exit gates require moving south (dy = 1)
+                this.showMessage('Please use the exit gates to leave the library.');
+                return;
+            }
+            // allowed – continue moving normally (no return)
         }
 
         if (tile === 'B' && !this.gameState.puzzleSolved) {
@@ -288,6 +302,14 @@ class OverworldScene extends Phaser.Scene {
                 this.scene.launch('Battle', { battleType: 'trainer', opponent: opponent, trainer: trainer });
                 this.scene.pause();
             }
+        }
+
+        // Intro trigger tile (after card validated, before first bookshelf)
+        const introTiles = [{x: 10, y: 25}];   // tile just north of the entry gates
+        const trigger = introTiles.find(t => t.x === col && t.y === row);
+        if (trigger && !this.gameState.introCompleted && this.gameState.cardValidated && this.gameState.backpack.length === 0) {
+            this.startIntroSequence();
+            return;
         }
     }
 
@@ -520,6 +542,96 @@ class OverworldScene extends Phaser.Scene {
         }
     }
 
+
+startIntroSequence() {
+    this.gameState.inputLocked = true;
+
+    this.showMessage('"Wait! Stop right there!"', () => {
+        this.scene.launch('Dialogue', {
+            text: '"Don\'t peruse those shelves! It\'s unsafe! Wild Bibliomon live in tall stacks! You need your own Bibliomon for protection. I\'m Sam, the Library Man. Follow me!"',
+            callback: () => {
+                this.walkToReception();
+            }
+        });
+        if (this.scene.isActive('Overworld')) this.scene.pause();
+    });
+    if (this.scene.isActive('Overworld')) this.scene.pause();
+}
+
+walkToReception() {
+    // Teleport the player to just outside the entry gates, facing the reception desk
+    this.gameState.player.tileX = 11;
+    this.gameState.player.tileY = 26;
+    this.gameState.player.facing = 'left';
+    this.player.setPosition(11 * 16 + 8, 26 * 16 + 8);
+    this.gameState.inputLocked = false;
+
+    this.time.delayedCall(400, () => {
+        this.showStarterSelection();
+    });
+}
+
+showStarterSelection() {
+    this.scene.launch('Dialogue', {
+        text: '"Here, choose one of these Bibliomon to help you."',
+        choices: [
+            'The Norton Anthology (Arts)',
+            'Company Law: A Guide (Business)',
+            'Fundamentals of Thermodynamics (Science)',
+            'The Human Body Book (Health)'
+        ],
+        choiceCallback: (choice) => {
+            let bookId = 'norton_anthology_base';
+            if (choice.startsWith('Company')) bookId = 'company_law_base';
+            else if (choice.startsWith('Fundamentals')) bookId = 'thermo_base';
+            else if (choice.startsWith('The Human')) bookId = 'human_body_base';
+
+            this.gameState.backpack.push(createBookInstance(bookId, 5));
+            this.gameState.introCompleted = true;
+            saveGameData();
+
+            this.showMessage(`You received ${ALL_BOOKS[bookId].name}!`, () => {
+                this.showMessage('"Now you\'re ready! You can borrow more Bibliomon from the shelves. Good luck, and welcome to the Library!"', () => {
+                    this.gameState.mode = 'walk';
+                    this.gameState.inputLocked = false;
+                });
+            });
+        }
+    });
+    if (this.scene.isActive('Overworld')) this.scene.pause();
+}
+// ── Starter Selection ───────────────────────────────────────────────────────
+showStarterSelection() {
+    this.scene.launch('Dialogue', {
+        text: '"Here, choose one of these Bibliomon to help you."',
+        choices: [
+            'The Norton Anthology (Arts)',
+            'Company Law: A Guide (Business)',
+            'Fundamentals of Thermodynamics (Science)',
+            'The Human Body Book (Health)'
+        ],
+        choiceCallback: (choice) => {
+            let bookId = 'norton_anthology_base';
+            if (choice.startsWith('Company')) bookId = 'company_law_base';
+            else if (choice.startsWith('Fundamentals')) bookId = 'thermo_base';
+            else if (choice.startsWith('The Human')) bookId = 'human_body_base';
+
+            this.gameState.backpack.push(createBookInstance(bookId, 5));
+            this.gameState.introCompleted = true;
+            saveGameData();
+
+            this.showMessage(`You received ${ALL_BOOKS[bookId].name}!`, () => {
+                this.showMessage('"Now you\'re ready! You can borrow more Bibliomon from the shelves. Good luck, and welcome to the Library!"', () => {
+                    // Gates are already open, card is now permanently validated
+                    this.gameState.mode = 'walk';
+                    this.gameState.inputLocked = false;
+                });
+            });
+        }
+    });
+    if (this.scene.isActive('Overworld')) this.scene.pause();
+}
+// ── Gym Challenge ─────────────────────────────────────────────────────────────
     startGymChallenge() {
         if (this.gameState.gym1Defeated) {
             this.showMessage('You have already conquered the Special Collections Gym.');
@@ -597,7 +709,7 @@ class OverworldScene extends Phaser.Scene {
         }
     }
 
-    // ── Main loop (this was missing – now restored) ─────────────────────────
+
     update(time, delta) {
         const p = this.gameState.player;
         if (this.gameState.mode !== 'walk' || this.gameState.inputLocked || p.isMoving) return;

@@ -26,6 +26,8 @@ window.saveGameData = function() {
         },
         backpack: state.backpack,
         trainerMap: {},
+        introCompleted: false,
+        introCompleted: state.introCompleted,
         cardValidated: state.cardValidated,
         libraryAccount: state.libraryAccount,
         items: state.items,
@@ -52,6 +54,8 @@ window.loadGameData = function() {
         state.player.tileY = saved.player?.tileY || 29;
         state.player.facing = saved.player?.facing || 'down';
         state.backpack = saved.backpack || [];
+        introCompleted: false,
+        state.introCompleted = saved.introCompleted || false;
         state.cardValidated = saved.cardValidated || false;
         state.libraryAccount = saved.libraryAccount || [];
         state.items = saved.items || [];
@@ -97,6 +101,7 @@ window.gameState = {
     activeBookIndex: 0,
     battle: null,
     defeatedTrainers: [],
+    introCompleted: false,
     cardValidated: false,
     puzzleSolved: false,
     inputLocked: false,
