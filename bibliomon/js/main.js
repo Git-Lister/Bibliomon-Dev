@@ -83,8 +83,9 @@ window.gameState = {
         moveTween: null
     },
     backpack: [],
-    credits: 100,                    // ← add here
-    collectedItems: [],              // ← add here
+    credits: 100, 
+    collectedItems: [],
+    hasLoadedSave: false,
     libraryAccount: [],
     items: [
         { itemId: 'potion', qty: 3 },

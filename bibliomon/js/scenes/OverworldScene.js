@@ -26,28 +26,25 @@ class OverworldScene extends Phaser.Scene {
         this.cameras.main.setBackgroundColor('#1a1a1a');
         this.gameState = window.gameState;
 
-
         // Check for saved game and show load prompt if found
-const hasSave = localStorage.getItem('bibliomon_save');
-if (hasSave) {
-    this.scene.launch('Dialogue', {
-        text: 'Saved data found. Continue from where you left off?',
-        choices: ['Yes', 'No'],
-        choiceCallback: (choice) => {
-            if (choice === 'yes') {
-                window.loadGameData();
-                // Restart scene with loaded data
-                this.scene.restart();
-            } else {
-                // Start fresh – wipe save
-                localStorage.removeItem('bibliomon_save');
-                this.scene.restart();
-            }
+        const hasSave = localStorage.getItem('bibliomon_save');
+        if (hasSave) {
+            this.scene.launch('Dialogue', {
+                text: 'Saved data found. Continue from where you left off?',
+                choices: ['Yes', 'No'],
+                choiceCallback: (choice) => {
+                    if (choice === 'yes') {
+                        window.loadGameData();
+                        this.scene.restart();
+                    } else {
+                        localStorage.removeItem('bibliomon_save');
+                        this.scene.restart();
+                    }
+                }
+            });
+            this.scene.pause();
+            return;
         }
-    });
-    this.scene.pause();
-    return;   // skip the rest of create() until choice is made
-}
 
         // Starter book
         if (this.gameState.backpack.length === 0) {
@@ -116,7 +113,7 @@ if (hasSave) {
             for (let c = 0; c < mapData[r].length; c++) {
                 let tileChar = mapData[r][c];
                 if (tileChar === 'Y' && this.gameState.cardValidated) {
-                        tileChar = '.';   // draw as normal floor
+                    tileChar = '.';
                 }
                 if (tileChar === '.') continue;
                 if (tileChar.startsWith('P') && tileChar.length === 2) {
@@ -131,6 +128,13 @@ if (hasSave) {
                 this.allTiles.add(sprite);
             }
         }
+    }
+
+    refreshGates() {
+        if (this.allTiles) {
+            this.allTiles.clear(true, true);
+        }
+        this.buildMap();
     }
 
     createPlayer() {
@@ -159,56 +163,53 @@ if (hasSave) {
         this.escKey   = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.ESC);
     }
 
-openShop(shopId) {
-    const shop = SHOPS[shopId];
-    if (!shop) return;
+    openShop(shopId) {
+        const shop = SHOPS[shopId];
+        if (!shop) return;
 
-    const scene = this;   // capture the scene for use inside the callback
+        const scene = this;
 
-    const itemList = shop.items.map(i => {
-        const item = ITEM_DATA[i.itemId];
-        return `${item.name}  £${i.price}`;
-    });
+        const itemList = shop.items.map(i => {
+            const item = ITEM_DATA[i.itemId];
+            return `${item.name}  £${i.price}`;
+        });
 
-    scene.scene.launch('Dialogue', {
-        text: `Welcome to the ${shop.name}! What would you like?`,
-        choices: [...itemList, 'Cancel'],
-        choiceCallback: (choice) => {
-            if (choice === 'cancel') return;
+        scene.scene.launch('Dialogue', {
+            text: `Welcome to the ${shop.name}! What would you like?`,
+            choices: [...itemList, 'Cancel'],
+            choiceCallback: (choice) => {
+                if (choice === 'cancel') return;
 
-            const idx = itemList.findIndex(t => t.toLowerCase() === choice);
-            if (idx >= 0) {
-                const selected = shop.items[idx];
-                if (scene.gameState.credits >= selected.price) {
-                    let slot = scene.gameState.items.find(i => i.itemId === selected.itemId);
-                    if (!slot) {
-                        slot = { itemId: selected.itemId, qty: 0 };
-                        scene.gameState.items.push(slot);
-                    }
-                    if (slot.qty >= 20) {
+                const idx = itemList.findIndex(t => t.toLowerCase() === choice);
+                if (idx >= 0) {
+                    const selected = shop.items[idx];
+                    if (scene.gameState.credits >= selected.price) {
+                        let slot = scene.gameState.items.find(i => i.itemId === selected.itemId);
+                        if (!slot) { slot = { itemId: selected.itemId, qty: 0 }; scene.gameState.items.push(slot); }
+                        if (slot.qty >= 20) {
+                            scene.time.delayedCall(100, () => {
+                                scene.showMessage('Inventory full for that item.');
+                            });
+                            return;
+                        }
+                        scene.gameState.credits -= selected.price;
+                        slot.qty++;
+                        saveGameData();
                         scene.time.delayedCall(100, () => {
-                            scene.showMessage('Inventory full for that item.');
+                            scene.showMessage(`Purchased ${ITEM_DATA[selected.itemId].name}!`);
                         });
-                        return;
+                    } else {
+                        scene.time.delayedCall(100, () => {
+                            scene.showMessage('Not enough Rise‑Points.');
+                        });
                     }
-                    scene.gameState.credits -= selected.price;
-                    slot.qty++;
-                    saveGameData();
-                    scene.time.delayedCall(100, () => {
-                        scene.showMessage(`Purchased ${ITEM_DATA[selected.itemId].name}!`);
-                    });
-                } else {
-                    scene.time.delayedCall(100, () => {
-                        scene.showMessage('Not enough Rise‑Points.');
-                    });
                 }
             }
+        });
+        if (scene.scene.isActive('Overworld')) {
+            scene.scene.pause();
         }
-    });
-    if (scene.scene.isActive('Overworld')) {
-        scene.scene.pause();
     }
-}
 
     attemptMove(dx, dy) {
         const p = this.gameState.player;
@@ -221,11 +222,9 @@ openShop(shopId) {
         const nextRow = p.tileY + dy;
         const tile = this.getTileAt(nextCol, nextRow);
 
-        // Solid tiles
         if (tile === 'W' || tile === 'H' || tile === 'Z' ||
             tile === 'R' || tile === 'O' || tile === 'V' || tile === 'C') return;
 
-        // Security gates (solid until validated)
         if (tile === 'Y' && !this.gameState.cardValidated) {
             this.showMessage('The security gate is locked. Validate your card at Reception first.');
             return;
@@ -313,16 +312,22 @@ openShop(shopId) {
         this.gameState.player.tileX = col;
         this.gameState.player.tileY = row;
         let currentCol = col, currentRow = row, currentTile = tile;
-        const executeStep = () => {
+
+        const moveNext = () => {
             const dir = this.getSpinDirection(currentTile);
-            if (!dir) { this.gameState.inputLocked = false; return; }
+            if (!dir) {
+                this.gameState.inputLocked = false;
+                return;
+            }
             const nextCol = currentCol + dir.x;
             const nextRow = currentRow + dir.y;
             const nextTile = this.getTileAt(nextCol, nextRow);
+
             if (nextTile === 'W' || (nextTile === 'B' && !this.gameState.puzzleSolved)) {
                 this.gameState.inputLocked = false;
                 return;
             }
+
             this.tweens.add({
                 targets: this.player,
                 x: nextCol * 16 + 8,
@@ -332,23 +337,28 @@ openShop(shopId) {
                 onComplete: () => {
                     this.gameState.player.tileX = nextCol;
                     this.gameState.player.tileY = nextRow;
+
                     if (nextTile === 'X') {
                         this.gameState.puzzleSolved = true;
                         this.gameState.inputLocked = false;
                         this.showMessage('The directional study carrels align! A lock clicks open nearby.');
                         saveGameData();
-                    } else if (nextTile.startsWith('P')) {
+                        return;
+                    }
+
+                    if (nextTile.startsWith('P')) {
                         currentCol = nextCol;
                         currentRow = nextRow;
                         currentTile = nextTile;
-                        executeStep();
+                        moveNext();
                     } else {
                         this.gameState.inputLocked = false;
                     }
                 }
             });
         };
-        executeStep();
+
+        moveNext();
     }
 
     getSpinDirection(tile) {
@@ -360,7 +370,7 @@ openShop(shopId) {
             default: return null;
         }
     }
-        // ── Dialogue handling (moved from DialogueScene for better map interaction) ─────
+
     handleInteraction() {
         const p = this.gameState.player;
         let tx = p.tileX, ty = p.tileY;
@@ -371,7 +381,6 @@ openShop(shopId) {
             case 'right': tx++; break;
         }
 
-        // ── Hidden item check (no tile needed) ──────────────────────────────
         const hidden = this.gameState.hiddenItems.find(h => h.x === tx && h.y === ty && h.qty > 0);
         if (hidden) {
             hidden.qty--;
@@ -389,35 +398,45 @@ openShop(shopId) {
 
         const tile = this.getTileAt(tx, ty);
 
-        // ── Reception desk ─────────────────────────────────────────────────
         if (tile === 'R') {
-            if (this.gameState.player.facing !== 'left') {
-                this.showMessage('The reception desk is staffed from the front.');
+            const scene = this;
+            if (scene.gameState.player.facing !== 'left') {
+                scene.showMessage('The reception desk is staffed from the front.');
                 return;
             }
-            if (this.gameState.cardValidated) {
-                this.showMessage('Your Library Card is already valid. Welcome!');
+            if (scene.gameState.cardValidated) {
+                scene.showMessage('Your Library Card is already valid. Welcome!');
                 return;
             }
-            this.scene.launch('Dialogue', {
+            scene.scene.launch('Dialogue', {
                 text: '"Good morning! May I see your Library Card?"',
                 choices: ['Yes', 'Not yet'],
                 choiceCallback: (choice) => {
                     if (choice === 'yes') {
-                        this.gameState.cardValidated = true;
-                        saveGameData();
-                        // Immediately update the map to show open gates
-                        this.refreshGates();
+                        scene.time.delayedCall(150, () => {
+                            scene.gameState.cardValidated = true;
+                            saveGameData();
+                            scene.refreshGates();
+                        });
+                    } else {
+                        scene.time.delayedCall(100, () => {
+                            scene.scene.launch('Dialogue', {
+                                text: 'Please come back when you have your card.',
+                                callback: () => {}
+                            });
+                            if (scene.scene.isActive('Overworld')) {
+                                scene.scene.pause();
+                            }
+                        });
                     }
-                    // No extra message – the dialogue already says "Your Library Card has been validated."
                 }
             });
-            if (this.scene.isActive('Overworld')) {
-                this.scene.pause();
+            if (scene.scene.isActive('Overworld')) {
+                scene.scene.pause();
             }
             return;
         }
-        // ── Help-Desk (healing and account access) ─────────────────────────────
+
         if (tile === 'H') {
             this.scene.launch('Dialogue', {
                 text: '"Hello! Welcome to the Library. Would you like me to check your books?"',
@@ -440,7 +459,9 @@ openShop(shopId) {
                             text: 'Come back anytime!',
                             callback: () => {}
                         });
-                        this.scene.pause();
+                        if (this.scene.isActive('Overworld')) {
+                            this.scene.pause();
+                        }
                     }
                 }
             });
@@ -494,16 +515,89 @@ openShop(shopId) {
                 if (callback) callback();
             }
         });
-        // Only pause if the Overworld scene is still running
         if (this.scene.isActive('Overworld')) {
             this.scene.pause();
         }
     }
 
     startGymChallenge() {
-        this.showMessage('Prepare to face the Archivists!', () => {});
+        if (this.gameState.gym1Defeated) {
+            this.showMessage('You have already conquered the Special Collections Gym.');
+            return;
+        }
+
+        this.gameState.gymState = {
+            phase: 'intro',
+            trainerIndex: 0
+        };
+
+        this.showMessage('Welcome to the Special Collections Gym!', () => {
+            this.startNextGymBattle();
+        });
     }
 
+    startNextGymBattle() {
+        const gs = this.gameState.gymState;
+        const scene = this;
+
+        let trainerData = null;
+        if (gs.phase === 'intro' || gs.phase === 'trainer1') {
+            trainerData = GYM1_TRAINERS[0];
+            gs.phase = 'trainer1';
+            gs.trainerIndex = 0;
+        } else if (gs.phase === 'trainer2') {
+            trainerData = GYM1_TRAINERS[1];
+            gs.trainerIndex = 1;
+        } else if (gs.phase === 'leader') {
+            trainerData = GYM1_LEADER;
+        } else {
+            return;
+        }
+
+        scene.scene.launch('Dialogue', {
+            text: trainerData.dialogue,
+            callback: () => {
+                const opponent = createBookInstance(trainerData.books[0].id, trainerData.books[0].level);
+                scene.gameState.mode = 'battle';
+                scene.gameState.battle = {
+                    type: 'trainer',
+                    opponent: opponent,
+                    trainer: trainerData,
+                    trainerBookIndex: 0
+                };
+                scene.scene.launch('Battle', {
+                    battleType: 'trainer',
+                    opponent: opponent,
+                    trainer: trainerData
+                });
+                scene.scene.pause();
+            }
+        });
+        if (scene.scene.isActive('Overworld')) {
+            scene.scene.pause();
+        }
+    }
+
+    onGymBattleEnd() {
+        const gs = this.gameState.gymState;
+        if (!gs) return;
+
+        if (gs.phase === 'trainer1') {
+            gs.phase = 'trainer2';
+            this.startNextGymBattle();
+        } else if (gs.phase === 'trainer2') {
+            gs.phase = 'leader';
+            this.startNextGymBattle();
+        } else if (gs.phase === 'leader') {
+            this.gameState.gym1Defeated = true;
+            this.gameState.badges.push('archive_badge');
+            this.gameState.gymState = null;
+            saveGameData();
+            this.showMessage('Head Archivist Miriam: "Impressive research. You have earned the Archive Badge!"');
+        }
+    }
+
+    // ── Main loop (this was missing – now restored) ─────────────────────────
     update(time, delta) {
         const p = this.gameState.player;
         if (this.gameState.mode !== 'walk' || this.gameState.inputLocked || p.isMoving) return;

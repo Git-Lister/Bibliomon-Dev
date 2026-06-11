@@ -244,6 +244,14 @@ class BattleScene extends Phaser.Scene {
     }
 
     returnToOverworld() {
+        // If this was a gym battle, notify the overworld to advance the sequence
+        if (window.gameState.gymState && this.trainer) {
+            const overworld = this.scene.get('Overworld');
+            if (overworld && overworld.onGymBattleEnd) {
+                overworld.onGymBattleEnd();
+            }
+        }
+
         this.gameState.mode = 'walk';
         this.scene.stop();
         this.scene.resume('Overworld');
