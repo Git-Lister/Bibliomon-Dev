@@ -90,8 +90,8 @@ class BootScene extends Phaser.Scene {
 
         // ── Tile mapping: index → map char ─────────────────────────────────────
         const tileDefs = [
-            { char: '.', color: '#fafaf9', detail: 'dot'         },   // Carpet floor
-            { char: 'W', color: '#27272a', stroke: '#18181b'    },   // Concrete wall
+            { char: '.', color: '#fafaf9', detail: 'dot'        },   // Carpet floor
+            { char: 'W', color: '#27272a', stroke: '#18181b'  },   // Concrete wall
             { char: 'H', color: '#1e3a8a'                       },   // Help Desk counter (interactable)
             { char: 'K', color: '#065f46'                       },   // Kitchenette (heal + save)
             { char: 'S', color: '#7c2d12', detail: 'books'      },   // Bookshelf (wild encounter zone)
@@ -110,7 +110,8 @@ class BootScene extends Phaser.Scene {
             { char: 'Pv', color: '#0ea5e9'                      },   // Spin tile (down arrow)
             { char: 'Z', color: '#fafaf9', detail: 'staff'      },    // Staff member (decorative)
             { char: 'R', color: '#1e3a8a', detail: 'reception'  },   // Reception desk
-            { char: 'Y', color: '#7f1d1d', detail: 'gate'       },   // Locked gate (e.g. for gym)
+            { char: 'I', color: '#2d5a27', detail: 'entryGate'  },   // green entry gate
+            { char: 'Y', color: '#7f1d1d', detail: 'exitGate'   },     // red exit gate
             { char: 'O', color: '#2d5a27', detail: 'plant'      },   // Potted plant (decorative)
         ];
 
@@ -178,18 +179,38 @@ class BootScene extends Phaser.Scene {
                 ctx.fillRect(x, y, tileSize, tileSize);
                 ctx.fillStyle = '#3b82f6';
                 ctx.fillRect(x + 2, y + 2, tileSize - 4, 4);
-            } else if (def.detail === 'gate') {
+            } else if (def.detail === 'entryGate') {
+                // Green entry gate with right arrow
+                ctx.fillStyle = '#2d5a27';
+                ctx.fillRect(x, y, tileSize, tileSize);
+                ctx.strokeStyle = '#ffffff';
+                ctx.lineWidth = 1;
+                ctx.strokeRect(x + 3, y + 3, tileSize - 6, tileSize - 6);
+                // Right arrow
+                ctx.fillStyle = '#00ff00';
+                ctx.beginPath();
+                ctx.moveTo(x + 4, y + 8);
+                ctx.lineTo(x + 12, y + 8);
+                ctx.lineTo(x + 9, y + 4);
+                ctx.moveTo(x + 12, y + 8);
+                ctx.lineTo(x + 9, y + 12);
+                ctx.fill();
+            } else if (def.detail === 'exitGate') {
+                // Red exit gate with left arrow
                 ctx.fillStyle = '#7f1d1d';
                 ctx.fillRect(x, y, tileSize, tileSize);
                 ctx.strokeStyle = '#ffffff';
                 ctx.lineWidth = 1;
                 ctx.strokeRect(x + 3, y + 3, tileSize - 6, tileSize - 6);
+                // Left arrow
+                ctx.fillStyle = '#ff0000';
                 ctx.beginPath();
-                ctx.moveTo(x + 2, y + 2);
-                ctx.lineTo(x + tileSize - 2, y + tileSize - 2);
-                ctx.moveTo(x + tileSize - 2, y + 2);
-                ctx.lineTo(x + 2, y + tileSize - 2);
-                ctx.stroke();
+                ctx.moveTo(x + 12, y + 8);
+                ctx.lineTo(x + 4, y + 8);
+                ctx.lineTo(x + 7, y + 4);
+                ctx.moveTo(x + 4, y + 8);
+                ctx.lineTo(x + 7, y + 12);
+                ctx.fill();
             } else if (def.detail === 'plant') {
                 ctx.fillStyle = '#8B4513';
                 ctx.fillRect(x + 4, y + 10, 8, 6);
