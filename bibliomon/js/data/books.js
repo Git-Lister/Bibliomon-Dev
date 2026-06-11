@@ -162,7 +162,34 @@ const ALL_BOOKS = {
             { moveId: "hypothesis", learnLevel: 13 }
         ],
         catchRate: 100
-    }
+    },
+    ai_modern_approach_base: {
+        id: "ai_modern_approach_base",
+        name: "Artificial Intelligence: A Modern Approach",
+        type: "science_engineering",
+        baseStats: { hp: 48, atk: 42, def: 45, spAtk: 58, spDef: 50, spd: 42 },
+        moves: [
+            { moveId: "peer_review", learnLevel: 1 },
+            { moveId: "citation", learnLevel: 1 },
+            { moveId: "hypothesis", learnLevel: 6 },
+            { moveId: "lab_experiment", learnLevel: 12 }
+        ],
+        catchRate: 10
+    },
+    rival_special_base: {
+        id: "rival_special_base",
+        name: "The Creative Spark: Human Ingenuity",
+        type: "arts_humanities",
+        baseStats: { hp: 48, atk: 55, def: 42, spAtk: 48, spDef: 50, spd: 45 },
+        moves: [
+            { moveId: "close_reading", learnLevel: 1 },
+            { moveId: "deconstruction", learnLevel: 1 },
+            { moveId: "rhetoric", learnLevel: 6 },
+            { moveId: "annotation", learnLevel: 12 }
+        ],
+        catchRate: 10
+}
+
 };
 
 // ── EVOLUTION CHAIN BUILDER ─────────────────────────────────────────────────

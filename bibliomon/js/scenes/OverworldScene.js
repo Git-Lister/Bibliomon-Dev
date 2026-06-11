@@ -280,23 +280,52 @@ class OverworldScene extends Phaser.Scene {
     checkTileAfterMove(col, row, tile) {
         if (this.gameState.mode !== 'walk' || this.gameState.inputLocked) return;
 
-        // Wild encounters
-        if (tile === 'S') {
-            if (Math.random() < 0.10) {
-                const roll = Math.random();
-                let bid = 'thermo_base', lvl = 2;
-                if (roll < 0.30) { bid = 'thermo_base'; lvl = Math.random() < 0.5 ? 2 : 3; }
-                else if (roll < 0.55) { bid = 'company_law_base'; lvl = 3; }
-                else if (roll < 0.75) { bid = 'norton_anthology_base'; lvl = Math.random() < 0.5 ? 3 : 4; }
-                else if (roll < 0.90) { bid = 'human_body_base'; lvl = 4; }
-                else { bid = 'econ_dummies_base'; lvl = 4; }
-                const opponent = createBookInstance(bid, lvl);
-                this.gameState.mode = 'battle';
-                this.gameState.battle = { type: 'wild', opponent, trainer: null };
-                this.scene.launch('Battle', { battleType: 'wild', opponent });
-                this.scene.pause();
+    // Wild encounters (only on bookshelf tiles)
+    if (tile === 'S') {
+        if (Math.random() < 0.10) {
+            const roll = Math.random();
+            let bid = 'thermo_base', lvl = 2;
+
+            // Science & Engineering (2 options)
+            if (roll < 0.25) {
+                bid = 'thermo_base';
+                lvl = Math.random() < 0.5 ? 2 : 3;
+            } else if (roll < 0.50) {
+                bid = 'algorithms_base';
+                lvl = Math.random() < 0.5 ? 2 : 3;
             }
+            // Arts & Humanities (2 options)
+            else if (roll < 0.60) {
+                bid = 'norton_anthology_base';
+                lvl = Math.random() < 0.5 ? 3 : 4;
+            } else if (roll < 0.70) {
+                bid = 'ways_of_seeing_base';
+                lvl = Math.random() < 0.5 ? 3 : 4;
+            }
+            // Business & Law (2 options)
+            else if (roll < 0.80) {
+                bid = 'company_law_base';
+                lvl = 3;
+            } else if (roll < 0.90) {
+                bid = 'econ_dummies_base';
+                lvl = 4;
+            }
+            // Health & Education (2 options)
+            else if (roll < 0.95) {
+                bid = 'human_body_base';
+                lvl = 4;
+            } else {
+                bid = 'becoming_nurse_base';
+                lvl = 4;
+            }
+
+            const opponent = createBookInstance(bid, lvl);
+            this.gameState.mode = 'battle';
+            this.gameState.battle = { type: 'wild', opponent, trainer: null };
+            this.scene.launch('Battle', { battleType: 'wild', opponent });
+            this.scene.pause();
         }
+    }
 
         // Trainer battles
         if (tile === 'T' && this.gameState.currentMap === 'ground') {
@@ -504,19 +533,108 @@ class OverworldScene extends Phaser.Scene {
         if (this.scene.isActive('Overworld')) this.scene.pause();
     }
 
+
     // ═══════════════════════════════════════════════════════════════════════
     //  Intro Sequence (Sam the Library Man)
     // ═══════════════════════════════════════════════════════════════════════
     startIntroSequence() {
         this.gameState.inputLocked = true;
-        this.showMessage('"Wait! Stop right there!"', () => {
-            this.scene.launch('Dialogue', {
-                text: '"Don\'t peruse those shelves! It\'s unsafe! Wild Bibliomon live in tall stacks! You need your own Bibliomon for protection. I\'m Sam, the Library Man. Follow me!"',
-                callback: () => this.walkToReception()
-            });
-            if (this.scene.isActive('Overworld')) this.scene.pause();
+        const scene = this;
+
+        // Spawn Sam at a safe, walkable spot (column 5, row 22)
+        const samStartCol = 5, samStartRow = 22;
+        this.samSprite = this.add.sprite(samStartCol * 16 + 8, samStartRow * 16 + 8, 'sam');
+        this.samSprite.setOrigin(0.5).setDepth(2);
+
+        const eq = new EventQueue(this);
+
+        eq
+        // Walk Sam to column 3 (next to the player)
+        .moveNpc(this.samSprite, [
+            {x: 4, y: 22},
+            {x: 3, y: 22}
+        ])
+        // Dialogue chain
+        .message('"Wait! Stop right there!"')
+        .message('"Don\'t peruse those shelves! It\'s unsafe! Wild Bibliomon live in tall stacks! Let me show you how to handle them."')
+        .message('A wild Bibliomon appeared!')
+        .message('Sam used a Library Card!')
+        .message('Gotcha! Artificial Intelligence: A Modern Approach was caught!')
+        // Remove Sam and teleport
+        .run(() => {
+            if (scene.samSprite) {
+                scene.samSprite.destroy();
+                scene.samSprite = null;
+            }
+            scene.gameState.player.tileX = 11;
+            scene.gameState.player.tileY = 26;
+            scene.gameState.player.facing = 'left';
+            scene.player.setPosition(11 * 16 + 8, 26 * 16 + 8);
+            scene.gameState.inputLocked = false;
+        })
+        .wait(400)
+        // Give AI book
+        .message(`You received ${ALL_BOOKS['ai_modern_approach_base'].name}!`)
+        // Rival entrance
+        .run(() => {
+            scene.rivalSprite = scene.add.sprite(14 * 16 + 8, 26 * 16 + 8, 'rival');
+            scene.rivalSprite.setOrigin(0.5).setDepth(2);
+        })
+        .moveNpc(this.rivalSprite, [
+            {x: 13, y: 26},
+            {x: 12, y: 26},
+            {x: 11, y: 26}
+        ])
+        .message('"Hey! I already have a special Bibliomon. I don\'t need those old things!"', ['Who are you?'])
+        .message('"I\'m your rival! And this is my partner – The Creative Spark: Human Ingenuity!"')
+        .message('"A machine may learn, but true creativity is human. See you in the stacks!"')
+        .run(() => {
+            if (scene.rivalSprite) {
+                scene.rivalSprite.destroy();
+                scene.rivalSprite = null;
+            }
+        })
+        .message('Sam: "Good luck, both of you! The Library is now open. Go forth and research!"')
+        .run(() => {
+            scene.gameState.introCompleted = true;
+            saveGameData();
+            scene.gameState.mode = 'walk';
+            scene.gameState.inputLocked = false;
         });
-        if (this.scene.isActive('Overworld')) this.scene.pause();
+
+        eq.start();
+    }
+
+    moveAlongPath(sprite, path, index, onDone) {
+        if (index >= path.length) {
+            if (onDone) onDone();
+            return;
+        }
+        this.tweens.add({
+            targets: sprite,
+            x: path[index].x,
+            y: path[index].y,
+            duration: 100,
+            ease: 'Linear',
+            onComplete: () => {
+                this.moveAlongPath(sprite, path, index + 1, onDone);
+            }
+        });
+    }
+// Capture demonstration sequence
+    showCaptureSequence() {
+        this.showMessage('A wild Bibliomon appeared!', () => {
+            this.launchDialogue('Sam used a Library Card!', () => {
+                this.showMessage('Gotcha! Artificial Intelligence: A Modern Approach was caught!', () => {
+                    // Remove Sam from the map before teleporting
+                    if (this.samSprite) {
+                        this.samSprite.destroy();
+                        this.samSprite = null;
+                    }
+                    this.walkToReception();
+                });
+            });
+        });
     }
 
     walkToReception() {
@@ -524,38 +642,75 @@ class OverworldScene extends Phaser.Scene {
         this.gameState.player.facing = 'left';
         this.player.setPosition(11 * 16 + 8, 26 * 16 + 8);
         this.gameState.inputLocked = false;
-        this.time.delayedCall(400, () => this.showStarterSelection());
+        this.time.delayedCall(400, () => this.giveAIBook());
     }
 
-    showStarterSelection() {
-        this.scene.launch('Dialogue', {
-            text: '"Here, choose one of these Bibliomon to help you."',
-            choices: [
-                'The Norton Anthology (Arts)',
-                'Company Law: A Guide (Business)',
-                'Fundamentals of Thermodynamics (Science)',
-                'The Human Body Book (Health)'
-            ],
-            choiceCallback: (choice) => {
-                let bookId = 'norton_anthology_base';
-                if (choice.startsWith('Company')) bookId = 'company_law_base';
-                else if (choice.startsWith('Fundamentals')) bookId = 'thermo_base';
-                else if (choice.startsWith('The Human')) bookId = 'human_body_base';
+    giveAIBook() {
+        const bookId = 'ai_modern_approach_base';
+        this.gameState.backpack.push(createBookInstance(bookId, 5));
+        this.showMessage(`You received ${ALL_BOOKS[bookId].name}!`, () => {
+            this.showRivalScene();
+        });
+    }
 
-                this.gameState.backpack.push(createBookInstance(bookId, 5));
-                this.gameState.introCompleted = true;
-                saveGameData();
-                this.showMessage(`You received ${ALL_BOOKS[bookId].name}!`, () => {
-                    this.showMessage('"Now you\'re ready! You can borrow more Bibliomon from the shelves. Good luck, and welcome to the Library!"', () => {
-                        this.gameState.mode = 'walk';
-                        this.gameState.inputLocked = false;
-                    });
-                });
+    showRivalScene() {
+        // Spawn rival to the right of the reception desk
+        const rivalStartX = 14, rivalStartY = 26;
+        this.rivalSprite = this.add.sprite(rivalStartX * 16 + 8, rivalStartY * 16 + 8, 'rival');
+        this.rivalSprite.setOrigin(0.5);
+        this.rivalSprite.setDepth(2);
+
+        // Walk rival to the player (who is at 11,26)
+        this.tweens.add({
+            targets: this.rivalSprite,
+            x: 11 * 16 + 8,
+            y: 26 * 16 + 8,
+            duration: 600,
+            ease: 'Linear',
+            onComplete: () => {
+                this.launchDialogue(
+                    '"Hey! I already have a special Bibliomon. I don\'t need those old things!"',
+                    () => {
+                        this.launchDialogue(
+                            '"I\'m your rival! And this is my partner – The Creative Spark: Human Ingenuity!"',
+                            () => {
+                                this.showMessage('"A machine may learn, but true creativity is human. See you in the stacks!"', () => {
+                                    if (this.rivalSprite) {
+                                        this.rivalSprite.destroy();
+                                        this.rivalSprite = null;
+                                    }
+                                    this.finishIntro();
+                                });
+                            }
+                        );
+                    },
+                    ['Who are you?']
+                );
             }
         });
-        if (this.scene.isActive('Overworld')) this.scene.pause();
     }
 
+    finishIntro() {
+        this.gameState.introCompleted = true;
+        saveGameData();
+        this.showMessage('Sam: "Good luck, both of you! The Library is now open. Go forth and research!"', () => {
+            this.gameState.mode = 'walk';
+            this.gameState.inputLocked = false;
+        });
+    }
+
+    // ── Helper – launch Dialogue without double‑pausing ─────────────────
+    launchDialogue(text, callback, choices = null) {
+        this.scene.launch('Dialogue', {
+            text: text,
+            choices: choices,
+            choiceCallback: choices ? () => { if (callback) callback(); } : null,
+            callback: choices ? null : (callback || null)
+        });
+        if (this.scene.isActive('Overworld')) {
+            this.scene.pause();
+        }
+    }
     // ═══════════════════════════════════════════════════════════════════════
     //  Gym Challenge (Floor 1)
     // ═══════════════════════════════════════════════════════════════════════

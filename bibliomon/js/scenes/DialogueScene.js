@@ -114,15 +114,17 @@ class DialogueScene extends Phaser.Scene {
         // If a choice menu is active, execute the selected choice
         if (this.choices && this.choiceCallback) {
             const choice = this.choices[this.selected].toLowerCase();
-            this.choiceCallback(choice);
             this.scene.resume('Overworld');
             this.scene.stop();
+            setTimeout(() => this.choiceCallback(choice), 0);
             return;
         }
 
         // No choices – just close
-        if (this.callback) this.callback();
         this.scene.resume('Overworld');
         this.scene.stop();
+        if (this.callback) {
+            setTimeout(() => this.callback(), 0);
+        }
     }
 }

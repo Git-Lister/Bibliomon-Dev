@@ -12,6 +12,46 @@ class BootScene extends Phaser.Scene {
         this.generatePlayerSpritesheet();
         this.generateBookSprites();
         this.scene.start('Overworld');
+        this.generateCharacterSprites();
+    }
+
+
+    generateCharacterSprites() {
+    // Sam the Library Man (blue uniform, friendly)
+    const samCanvas = document.createElement('canvas');
+    samCanvas.width = 16; samCanvas.height = 16;
+    const sCtx = samCanvas.getContext('2d');
+    sCtx.fillStyle = '#1e40af';               // dark blue body
+    sCtx.fillRect(4, 6, 8, 8);
+    sCtx.fillStyle = '#fbcfe8';               // face
+    sCtx.beginPath(); sCtx.arc(8, 5, 2.5, 0, Math.PI * 2); sCtx.fill();
+    sCtx.fillStyle = '#ffffff';               // cap
+    sCtx.fillRect(5, 2, 6, 2);
+    sCtx.fillRect(7, 1, 2, 3);
+    this.textures.addImage('sam', samCanvas);
+
+    // Rival (red uniform, confident)
+    const rivalCanvas = document.createElement('canvas');
+    rivalCanvas.width = 16; rivalCanvas.height = 16;
+    const rCtx = rivalCanvas.getContext('2d');
+    rCtx.fillStyle = '#b91c1c';               // red body
+    rCtx.fillRect(4, 6, 8, 8);
+    rCtx.fillStyle = '#fbcfe8';               // face
+    rCtx.beginPath(); rCtx.arc(8, 5, 2.5, 0, Math.PI * 2); rCtx.fill();
+    rCtx.fillStyle = '#000000';               // dark cap (no graduation)
+    rCtx.fillRect(5, 2, 6, 2);
+    rCtx.fillRect(7, 1, 2, 3);
+    this.textures.addImage('rival', rivalCanvas);
+
+    // Student (generic trainer – green shirt)
+    const stuCanvas = document.createElement('canvas');
+    stuCanvas.width = 16; stuCanvas.height = 16;
+    const tCtx = stuCanvas.getContext('2d');
+    tCtx.fillStyle = '#166534';               // dark green body
+    tCtx.fillRect(4, 6, 8, 8);
+    tCtx.fillStyle = '#fbcfe8';               // face
+    tCtx.beginPath(); tCtx.arc(8, 5, 2.5, 0, Math.PI * 2); tCtx.fill();
+    this.textures.addImage('student', stuCanvas);
     }
 
     generateBookSprites() {
@@ -96,7 +136,7 @@ class BootScene extends Phaser.Scene {
             { char: 'K', color: '#065f46'                       },   // Kitchenette (heal + save)
             { char: 'S', color: '#7c2d12', detail: 'books'      },   // Bookshelf (wild encounter zone)
             { char: 'D', color: '#78350f'                       },   // Study door
-            { char: 'T', color: '#fafaf9', detail: 'trainer'    },   // Trainer (NPC battle)
+            { char: 'T', color: '#fafaf9', detail: 'student'    },   // Trainer (NPC battle)
             { char: 'V', color: '#6b21a8'                       },   // Vending machine (gives Potion)
             { char: 'C', color: '#9a3412'                       },   // Café counter (gives Super Potion)
             { char: 'E', color: '#71717a'                       },   // Staircase (floor transition)
@@ -139,9 +179,14 @@ class BootScene extends Phaser.Scene {
                     ctx.fillStyle = c;
                     ctx.fillRect(x + 1 + i * 4, y, 2, 10);
                 });
-            } else if (def.detail === 'trainer') {
-                ctx.fillStyle = '#dc2626';
-                ctx.fillRect(x + 4, y + 4, 8, 8);
+            } else if (def.detail === 'student') {
+                // Green‑uniform student (trainer)
+                ctx.fillStyle = '#166534';
+                ctx.fillRect(x + 4, y + 6, 8, 8);
+                ctx.fillStyle = '#fbcfe8';
+                ctx.beginPath();
+                ctx.arc(x + 8, y + 5, 2.5, 0, Math.PI * 2);
+                ctx.fill();
             } else if (def.detail === 'goal') {
                 ctx.fillStyle = '#eab308';
                 ctx.beginPath();
