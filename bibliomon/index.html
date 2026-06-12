@@ -7,7 +7,18 @@
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <div id="game-container"></div>
+    <div id="game-container">
+        <!-- Phaser will insert the <canvas> here automatically -->
+        <input type="text" id="nameInput"
+               style="position:absolute; top:45%; left:50%;
+                      transform:translate(-50%,-50%);
+                      font-family:monospace; font-size:14px; padding:6px;
+                      background:#000; color:#fff;
+                      border:2px solid #fff; display:none; z-index:10;
+                      text-align:center;"
+               maxlength="12" />
+    </div>
+
     <script src="https://cdn.jsdelivr.net/npm/phaser@3.60.0/dist/phaser.min.js"></script>
     <script src="js/data/moves.js"></script>
     <script src="js/data/books.js"></script>
@@ -16,6 +27,7 @@
     <script src="js/data/trainers.js"></script>
     <script src="js/data/types.js"></script>
     <script src="js/scenes/BootScene.js"></script>
+    <script src="js/scenes/TitleScene.js"></script>
     <script src="js/scenes/MenuScene.js"></script>
     <script src="js/data/battleLogic.js"></script>
     <script src="js/scenes/BattleScene.js"></script>
@@ -23,6 +35,5 @@
     <script src="js/scenes/OverworldScene.js"></script>
     <script src="js/scenes/DialogueScene.js"></script>
     <script src="js/main.js"></script>
-
 </body>
 </html>

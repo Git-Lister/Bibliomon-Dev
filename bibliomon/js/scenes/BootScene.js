@@ -153,6 +153,7 @@ class BootScene extends Phaser.Scene {
             { char: 'I', color: '#2d5a27', detail: 'entryGate'  },   // green entry gate
             { char: 'Y', color: '#7f1d1d', detail: 'exitGate'   },     // red exit gate
             { char: 'O', color: '#2d5a27', detail: 'plant'      },   // Potted plant (decorative)
+            { char: 'M', color: '#fafaf9', detail: 'rival'      },   // Rival's position (overworld only)
         ];
 
         tileDefs.forEach((def, index) => {
@@ -263,6 +264,18 @@ class BootScene extends Phaser.Scene {
                 ctx.beginPath();
                 ctx.arc(x + 8, y + 7, 5, 0, Math.PI * 2);
                 ctx.fill();
+                } else if (def.detail === 'rival') {
+                // Rival student (red cap)
+                ctx.fillStyle = '#dc2626';  // red uniform
+                ctx.fillRect(x + 5, y + 5, 6, 8);
+                ctx.fillStyle = '#fbcfe8';  // face
+                ctx.beginPath();
+                ctx.arc(x + 8, y + 3, 2.5, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.strokeStyle = '#000';
+                ctx.beginPath();
+                ctx.arc(x + 8, y + 4, 1, 0, Math.PI);
+                ctx.stroke();
             }
 
             // Store the tile index mapping

@@ -33,25 +33,7 @@ class OverworldScene extends Phaser.Scene {
         this.cameras.main.setBackgroundColor('#1a1a1a');
         this.gameState = window.gameState;
 
-        // ── Save‑prompt ──────────────────────────────────────────────────
-        const hasSave = localStorage.getItem('bibliomon_save');
-        if (hasSave) {
-            this.scene.launch('Dialogue', {
-                text: 'Saved data found. Continue from where you left off?',
-                choices: ['Yes', 'No'],
-                choiceCallback: (choice) => {
-                    if (choice === 'yes') {
-                        window.loadGameData();
-                        this.scene.restart();
-                    } else {
-                        localStorage.removeItem('bibliomon_save');
-                        this.scene.restart();
-                    }
-                }
-            });
-            this.scene.pause();
-            return;
-        }
+        // ── Save‑prompt removed – TitleScene handles this now ─────────────
 
         // ── Entrance scanner ─────────────────────────────────────────────
         const p = this.gameState.player;
@@ -239,7 +221,7 @@ class OverworldScene extends Phaser.Scene {
                 this.showMessage('The security gate is locked. Validate your card at Reception first.');
                 return;
             }
-            if (p.tileX <= nextCol) return;   // block if you’re still left of the gate
+            if (p.tileX <= nextCol) return;   // block if you're still left of the gate
         }
 
         // ── Other special tiles ──────────────────────────────────────────
@@ -533,6 +515,23 @@ class OverworldScene extends Phaser.Scene {
         if (this.scene.isActive('Overworld')) this.scene.pause();
     }
 
+    // ═══════════════════════════════════════════════════════════════════════
+    //  Name Input Helper (shows text box overlay for organic naming)
+    // ═══════════════════════════════════════════════════════════════════════
+    showNameInput(callback) {
+        const input = document.getElementById('nameInput');
+        input.style.display = 'block';
+        input.value = '';
+        input.focus();
+        const onEnter = (e) => {
+            if (e.key === 'Enter' && input.value.trim().length > 0) {
+                input.style.display = 'none';
+                input.removeEventListener('keydown', onEnter);
+                callback(input.value.trim());
+            }
+        };
+        input.addEventListener('keydown', onEnter);
+    }
 
     // ═══════════════════════════════════════════════════════════════════════
     //  Intro Sequence (Sam the Library Man)
@@ -621,12 +620,12 @@ class OverworldScene extends Phaser.Scene {
             }
         });
     }
-// Capture demonstration sequence
+
+    // Capture demonstration sequence
     showCaptureSequence() {
         this.showMessage('A wild Bibliomon appeared!', () => {
             this.launchDialogue('Sam used a Library Card!', () => {
                 this.showMessage('Gotcha! Artificial Intelligence: A Modern Approach was caught!', () => {
-                    // Remove Sam from the map before teleporting
                     if (this.samSprite) {
                         this.samSprite.destroy();
                         this.samSprite = null;
@@ -654,13 +653,11 @@ class OverworldScene extends Phaser.Scene {
     }
 
     showRivalScene() {
-        // Spawn rival to the right of the reception desk
         const rivalStartX = 14, rivalStartY = 26;
         this.rivalSprite = this.add.sprite(rivalStartX * 16 + 8, rivalStartY * 16 + 8, 'rival');
         this.rivalSprite.setOrigin(0.5);
         this.rivalSprite.setDepth(2);
 
-        // Walk rival to the player (who is at 11,26)
         this.tweens.add({
             targets: this.rivalSprite,
             x: 11 * 16 + 8,
@@ -711,6 +708,7 @@ class OverworldScene extends Phaser.Scene {
             this.scene.pause();
         }
     }
+
     // ═══════════════════════════════════════════════════════════════════════
     //  Gym Challenge (Floor 1)
     // ═══════════════════════════════════════════════════════════════════════

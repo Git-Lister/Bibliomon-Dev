@@ -12,7 +12,7 @@ const config = {
             debug: false
         }
     },
-    scene: [BootScene, OverworldScene, BattleScene, MenuScene, DialogueScene]
+    scene: [BootScene, TitleScene, OverworldScene, BattleScene, MenuScene, DialogueScene]
 };
 
 window.saveGameData = function() {
@@ -26,9 +26,8 @@ window.saveGameData = function() {
         },
         backpack: state.backpack,
         trainerMap: {},
-        introCompleted: false,
-        introCompleted: state.introCompleted,
         cardValidated: state.cardValidated,
+        introCompleted: state.introCompleted,
         libraryAccount: state.libraryAccount,
         items: state.items,
         credits: state.credits,
@@ -37,7 +36,9 @@ window.saveGameData = function() {
         defeatedTrainers: state.defeatedTrainers,
         puzzleSolved: state.puzzleSolved,
         gym1Defeated: state.gym1Defeated,
-        badges: state.badges
+        badges: state.badges,
+        playerName: state.playerName,
+        rivalName: state.rivalName
     };
     localStorage.setItem('bibliomon_save', JSON.stringify(data));
     console.log('Game saved.');
@@ -54,9 +55,8 @@ window.loadGameData = function() {
         state.player.tileY = saved.player?.tileY || 29;
         state.player.facing = saved.player?.facing || 'down';
         state.backpack = saved.backpack || [];
-        introCompleted: false,
-        state.introCompleted = saved.introCompleted || false;
         state.cardValidated = saved.cardValidated || false;
+        state.introCompleted = saved.introCompleted || false;
         state.libraryAccount = saved.libraryAccount || [];
         state.items = saved.items || [];
         state.credits = saved.credits || 100;
@@ -66,6 +66,8 @@ window.loadGameData = function() {
         state.puzzleSolved = saved.puzzleSolved || false;
         state.gym1Defeated = saved.gym1Defeated || false;
         state.badges = saved.badges || [];
+        state.playerName = saved.playerName || '';
+        state.rivalName = saved.rivalName || '';
         return true;
     } catch (e) {
         console.error('Save load error:', e);
@@ -87,9 +89,8 @@ window.gameState = {
         moveTween: null
     },
     backpack: [],
-    credits: 100, 
+    credits: 100,
     collectedItems: [],
-    hasLoadedSave: false,
     libraryAccount: [],
     items: [
         { itemId: 'potion', qty: 3 },
@@ -101,8 +102,8 @@ window.gameState = {
     activeBookIndex: 0,
     battle: null,
     defeatedTrainers: [],
-    introCompleted: false,
     cardValidated: false,
+    introCompleted: false,
     puzzleSolved: false,
     inputLocked: false,
     gym1Defeated: false,
@@ -117,9 +118,11 @@ window.gameState = {
     startTime: Date.now(),
     savedPlayTime: 0,
     trainerMap: {},
-hiddenItems: [
-    { x: 30, y: 24, itemId: 'potion', qty: 1 },    // near ornament at row24 col30
-    { x: 3,  y: 26, itemId: 'antidote', qty: 1 },   // near ornament at row26 col3
-    { x: 28, y: 11, itemId: 'awakening', qty: 1 }   // near ornament at row11 col28
-]
+    hiddenItems: [
+        { x: 30, y: 24, itemId: 'potion', qty: 1 },
+        { x: 3,  y: 26, itemId: 'antidote', qty: 1 },
+        { x: 28, y: 11, itemId: 'awakening', qty: 1 }
+    ],
+    playerName: '',
+    rivalName: ''
 };
