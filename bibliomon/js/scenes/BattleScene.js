@@ -86,6 +86,67 @@ class BattleScene extends Phaser.Scene {
         this.subSelection = 0;
     }
 
+    animateAttacker(isPlayer, category) {
+    const sprite = isPlayer ? this.playerSprite : this.opponentSprite;
+    if (!sprite) return;
+    if (category === 'physical') {
+        // Lunge toward the opponent
+        this.tweens.add({
+            targets: sprite,
+            x: sprite.x + (isPlayer ? 10 : -10),   // player goes right, opponent goes left
+            duration: 100,
+            yoyo: true,
+            ease: 'Linear'
+        });
+    } else if (category === 'special') {
+        // Quick white flash
+        this.tweens.add({
+            targets: sprite,
+            alpha: 0.3,
+            duration: 80,
+            yoyo: true,
+            repeat: 1
+        });
+    }
+}
+
+    animateDefender(isPlayer) {
+        const sprite = isPlayer ? this.playerSprite : this.opponentSprite;
+        if (!sprite) return;
+        const originalX = sprite.x;
+        this.tweens.add({
+            targets: sprite,
+            x: originalX - 4,
+            duration: 50,
+            yoyo: true,
+            repeat: 2,
+            ease: 'Linear',
+            onComplete: () => { sprite.x = originalX; }
+        });
+    }
+
+    animateStatus(sprite) {
+        if (!sprite) return;
+        this.tweens.add({
+            targets: sprite,
+            scaleX: 1.2,
+            scaleY: 1.2,
+            duration: 150,
+            yoyo: true,
+            ease: 'Sine.easeInOut'
+        });
+    }
+
+    animateFaint(sprite) {
+        if (!sprite) return;
+        this.tweens.add({
+            targets: sprite,
+            alpha: 0,
+            duration: 300,
+            ease: 'Linear'
+        });
+    }
+
     updateUI() {
         const b = this.gameState.battle;
         if (!b) return;
@@ -169,7 +230,8 @@ class BattleScene extends Phaser.Scene {
 
     handleInput(event) {
         const b = this.gameState.battle;
-        if (!b || b.battleOver) return;
+        if (!b) return;
+        if (b.battleOver && b.menuMode !== 'message') return;
 
         if (this.inputLockTimer && Date.now() < this.inputLockTimer) return;
 

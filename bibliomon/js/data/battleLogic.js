@@ -10,7 +10,6 @@ function advanceLog() {
 
     if (b.log.length > 0) {
         const next = b.log.shift();
-        // Only strings go into the log now – no more functions
         b.currentMsg = next;
         b.menuMode = 'message';
         if (b.log.length > 0) {
@@ -24,9 +23,21 @@ function advanceLog() {
     } else {
         b.currentMsg = '';
         b.waitingForInput = false;
+
         if (b.battleOver) {
+            // Auto‑close the battle after a short delay, just like a borrow
+            b.waitingForInput = false;
+            if (window.gameState.activeBattleScene) {
+                const scene = window.gameState.activeBattleScene;
+                if (b.playerBook.currentHP <= 0 && window.gameState.backpack.every(bk => bk.currentHP <= 0)) {
+                    scene.time.delayedCall(500, () => scene.blackoutWarp());
+                } else {
+                    scene.time.delayedCall(500, () => scene.returnToOverworld());
+                }
+            }
             return;
         }
+
         if (b.playerBook.currentHP <= 0) {
             processPlayerFaint();
         } else if (b.opponent.currentHP <= 0) {
@@ -35,6 +46,7 @@ function advanceLog() {
             b.menuMode = 'main';
             b.selectionIdx = 0;
         }
+
         if (window.gameState.activeBattleScene) {
             window.gameState.activeBattleScene.updateUI();
         }
@@ -66,94 +78,153 @@ function executeMove(moveId, attacker, defender, atkStages, defStages, attName, 
     const move = MOVES[moveId];
     const b = window.gameState.battle;
 
-    // Step 1 – Show the move name immediately
+    // Step 1 – Show the move name immediately
     b.currentMsg = `${attName} used ${move.name}!`;
     b.menuMode = 'message';
     if (window.gameState.activeBattleScene) {
         window.gameState.activeBattleScene.updateUI();
     }
 
-    // Step 2 – After a short pause, apply damage and show the result
+    // Step 2 – After a short read, play animation and apply damage
     setTimeout(() => {
+        // Accuracy check
         if (move.effect !== 'neverMiss' && Math.random() > move.accuracy) {
             b.currentMsg = 'But it missed!';
             if (window.gameState.activeBattleScene) window.gameState.activeBattleScene.updateUI();
             if (b._onMoveComplete) {
-                const cb = b._onMoveComplete;
-                b._onMoveComplete = null;
-                cb();
+                const cb = b._onMoveComplete; b._onMoveComplete = null;
+                // Still give a moment to read “missed” before continuing
+                setTimeout(cb, 1200);
             }
             return;
         }
 
-        let dmgResult = calculateDamage(move, attacker, defender, atkStages, defStages);
-        let msg = '';
-
+        // Animate the attacker
         if (move.power > 0) {
-            let hits = 1;
-            if (move.effect === 'multi2to5') hits = Math.floor(Math.random() * 4) + 2;
-
-            let totalDmg = 0;
-            for (let h = 0; h < hits; h++) {
-                let chunk = calculateDamage(move, attacker, defender, atkStages, defStages).dmg;
-                defender.currentHP = Math.max(0, defender.currentHP - chunk);
-                totalDmg += chunk;
-                if (defender.currentHP <= 0) break;
-            }
-
-            msg = hits > 1 ? `Hit ${hits} times! Total damage: ${totalDmg}.` : `Dealt ${totalDmg} damage.`;
-
-            if (dmgResult.eff > 1) msg += ' Super effective!';
-            if (dmgResult.eff < 1) msg += ' Not very effective…';
-
-            if (move.effect === 'recoil33') {
-                let rec = Math.floor(totalDmg * 0.33);
-                attacker.currentHP = Math.max(0, attacker.currentHP - rec);
-                msg += ` ${attName} took ${rec} recoil damage!`;
-            }
-            if (move.effect === 'drain50') {
-                let drn = Math.floor(totalDmg * 0.50);
-                attacker.currentHP = Math.min(attacker.maxHP, attacker.currentHP + drn);
-                msg += ` ${attName} restored ${drn} HP.`;
-            }
+            triggerBattleAnimation('attacker', isAttackerPlayer, move.category);
         }
 
-        // Status effects (only if defender survived)
-        if (defender.currentHP > 0 && move.effect) {
+        const animDelay = move.power > 0 ? 200 : 80;   // let the attack animation play
+
+        setTimeout(() => {
+            let dmgResult = calculateDamage(move, attacker, defender, atkStages, defStages);
+            let msg = '';
+
+            if (move.power > 0) {
+                // Defender shake
+                triggerBattleAnimation('defender', !isAttackerPlayer);
+
+                let hits = 1;
+                if (move.effect === 'multi2to5') hits = Math.floor(Math.random() * 4) + 2;
+
+                let totalDmg = 0;
+                for (let h = 0; h < hits; h++) {
+                    let chunk = calculateDamage(move, attacker, defender, atkStages, defStages).dmg;
+                    defender.currentHP = Math.max(0, defender.currentHP - chunk);
+                    totalDmg += chunk;
+                    if (defender.currentHP <= 0) break;
+                }
+
+                msg = hits > 1 ? `Hit ${hits} times! Total damage: ${totalDmg}.` : `Dealt ${totalDmg} damage.`;
+
+                if (dmgResult.eff > 1) msg += ' Super effective!';
+                if (dmgResult.eff < 1) msg += ' Not very effective…';
+
+                if (move.effect === 'recoil33') {
+                    let rec = Math.floor(totalDmg * 0.33);
+                    attacker.currentHP = Math.max(0, attacker.currentHP - rec);
+                    msg += ` ${attName} took ${rec} recoil damage!`;
+                }
+                if (move.effect === 'drain50') {
+                    let drn = Math.floor(totalDmg * 0.50);
+                    attacker.currentHP = Math.min(attacker.maxHP, attacker.currentHP + drn);
+                    msg += ` ${attName} restored ${drn} HP.`;
+                }
+
+                // Faint animation
+                if (defender.currentHP <= 0) {
+                    triggerBattleAnimation('faint', !isAttackerPlayer);
+                }
+            }
+
+            // Status effects – apply AND append their messages
+            let statusMsgs = '';
             const randRoll = Math.random();
-            if (move.effect === 'lowerSpDef' && randRoll < 0.10 && defStages.spDef > -6) { defStages.spDef--; }
-            if (move.effect === 'raiseAtk' && atkStages.atk < 6) { atkStages.atk++; }
-            if (move.effect === 'lowerAtk' && defStages.atk > -6) { defStages.atk--; }
-            if (move.effect === 'overdue10' && randRoll < 0.10) {
-                if (isAttackerPlayer) { if (!b.opponentOverdue) { b.opponentOverdue = true; msg += ` ${defName} is Overdue!`; } }
-                else { if (!b.playerOverdue) { b.playerOverdue = true; msg += ` ${defName} is Overdue!`; } }
+            if (move.effect) {
+                if (move.effect === 'lowerSpDef' && randRoll < 0.10 && defStages.spDef > -6) {
+                    defStages.spDef--; statusMsgs += ` ${defName}'s Sp. Def fell!`;
+                    triggerBattleAnimation('status', !isAttackerPlayer);
+                }
+                if (move.effect === 'raiseAtk' && atkStages.atk < 6) {
+                    atkStages.atk++; statusMsgs += ` ${attName}'s Attack rose!`;
+                    triggerBattleAnimation('status', isAttackerPlayer);
+                }
+                if (move.effect === 'lowerAtk' && defStages.atk > -6) {
+                    defStages.atk--; statusMsgs += ` ${defName}'s Attack fell!`;
+                    triggerBattleAnimation('status', !isAttackerPlayer);
+                }
+                if (move.effect === 'overdue10' && randRoll < 0.10) {
+                    if (isAttackerPlayer) {
+                        if (!b.opponentOverdue) { b.opponentOverdue = true; statusMsgs += ` ${defName} is Overdue!`; }
+                    } else {
+                        if (!b.playerOverdue) { b.playerOverdue = true; statusMsgs += ` ${defName} is Overdue!`; }
+                    }
+                }
+                if (move.effect === 'raiseDef' && atkStages.def < 6) {
+                    atkStages.def++; statusMsgs += ` ${attName}'s Defense rose!`;
+                    triggerBattleAnimation('status', isAttackerPlayer);
+                }
+                if (move.effect === 'raiseSpAtk' && atkStages.spAtk < 6) {
+                    atkStages.spAtk++; statusMsgs += ` ${attName}'s Sp. Atk rose!`;
+                    triggerBattleAnimation('status', isAttackerPlayer);
+                }
+                if (move.effect === 'heal25') {
+                    let hl = Math.floor(attacker.maxHP * 0.25);
+                    attacker.currentHP = Math.min(attacker.maxHP, attacker.currentHP + hl);
+                    statusMsgs += ` ${attName} restored ${hl} HP.`;
+                    triggerBattleAnimation('status', isAttackerPlayer);
+                }
+                if (move.effect === 'raiseSpd2' && atkStages.spd < 6) {
+                    atkStages.spd = Math.min(6, atkStages.spd + 2);
+                    statusMsgs += ` ${attName}'s Speed sharply rose!`;
+                    triggerBattleAnimation('status', isAttackerPlayer);
+                }
+                if (move.effect === 'dot12.5') {
+                    if (isAttackerPlayer) {
+                        if (!b.opponentOverdue) { b.opponentOverdue = true; statusMsgs += ` ${defName} is now Overdue!`; }
+                    } else {
+                        if (!b.playerOverdue) { b.playerOverdue = true; statusMsgs += ` ${defName} is now Overdue!`; }
+                    }
+                }
+                if (move.effect === 'confuse' && randRoll < 0.20) {
+                    if (isAttackerPlayer) {
+                        if (!b.opponentConfused) {
+                            b.opponentConfused = true;
+                            b.opponentConfusedTurns = Math.floor(Math.random() * 4) + 1;
+                            statusMsgs += ` ${defName} became confused!`;
+                        }
+                    } else {
+                        if (!b.playerConfused) {
+                            b.playerConfused = true;
+                            b.playerConfusedTurns = Math.floor(Math.random() * 4) + 1;
+                            statusMsgs += ` ${defName} became confused!`;
+                        }
+                    }
+                }
             }
-            if (move.effect === 'raiseDef' && atkStages.def < 6) { atkStages.def++; }
-            if (move.effect === 'raiseSpAtk' && atkStages.spAtk < 6) { atkStages.spAtk++; }
-            if (move.effect === 'heal25') { let hl = Math.floor(attacker.maxHP * 0.25); attacker.currentHP = Math.min(attacker.maxHP, attacker.currentHP + hl); msg += ` ${attName} restored ${hl} HP.`; }
-            if (move.effect === 'raiseSpd2' && atkStages.spd < 6) { atkStages.spd = Math.min(6, atkStages.spd + 2); }
-            if (move.effect === 'dot12.5') {
-                if (isAttackerPlayer) { if (!b.opponentOverdue) { b.opponentOverdue = true; msg += ` ${defName} is now Overdue!`; } }
-                else { if (!b.playerOverdue) { b.playerOverdue = true; msg += ` ${defName} is now Overdue!`; } }
-            }
-            if (move.effect === 'confuse' && randRoll < 0.20) {
-                if (isAttackerPlayer) { if (!b.opponentConfused) { b.opponentConfused = true; b.opponentConfusedTurns = Math.floor(Math.random() * 4) + 1; msg += ` ${defName} became confused!`; } }
-                else { if (!b.playerConfused) { b.playerConfused = true; b.playerConfusedTurns = Math.floor(Math.random() * 4) + 1; msg += ` ${defName} became confused!`; } }
-            }
-        }
 
-        b.currentMsg = msg;
-        if (window.gameState.activeBattleScene) {
-            window.gameState.activeBattleScene.updateUI();
-        }
+            b.currentMsg = msg + statusMsgs;
+            if (window.gameState.activeBattleScene) {
+                window.gameState.activeBattleScene.updateUI();
+            }
 
-        // Step 3 – Signal completion so the turn continues
-        if (b._onMoveComplete) {
-            const cb = b._onMoveComplete;
-            b._onMoveComplete = null;
-            cb();
-        }
-    }, 1000); // 1 second to read the move name
+            // Signal completion after a **read pause**, so the damage is visible
+            if (b._onMoveComplete) {
+                const cb = b._onMoveComplete; b._onMoveComplete = null;
+                setTimeout(cb, 1500);   // 1.5 seconds to read the damage before next move
+            }
+        }, animDelay);
+    }, 1000);
 }
 
 function executeBattleTurn(playerMoveId) {
@@ -392,6 +463,24 @@ function processOpponentFaint() {
     b.processingFaint = false;
     advanceLog();
 }
+
+// Animation triggers for BattleScene to call (since the logic is decoupled from the scene)
+function triggerBattleAnimation(type, isPlayer, category) {
+    const scene = window.gameState.activeBattleScene;
+    if (!scene) return;
+    if (type === 'attacker') {
+        scene.animateAttacker(isPlayer, category);
+    } else if (type === 'defender') {
+        scene.animateDefender(isPlayer);
+    } else if (type === 'status') {
+        const sprite = isPlayer ? scene.playerSprite : scene.opponentSprite;
+        scene.animateStatus(sprite);
+    } else if (type === 'faint') {
+        const sprite = isPlayer ? scene.playerSprite : scene.opponentSprite;
+        scene.animateFaint(sprite);
+    }
+}
+
 
 function handleEscapeAttempt() {
     const b = window.gameState.battle;
