@@ -33,8 +33,6 @@ class OverworldScene extends Phaser.Scene {
         this.cameras.main.setBackgroundColor('#1a1a1a');
         this.gameState = window.gameState;
 
-        // ── Save‑prompt removed – TitleScene handles this now ─────────────
-
         // ── Entrance scanner ─────────────────────────────────────────────
         const p = this.gameState.player;
         if (p.tileX === undefined || p.tileY === undefined || (p.tileX === 0 && p.tileY === 0)) {
@@ -523,10 +521,13 @@ class OverworldScene extends Phaser.Scene {
         input.style.display = 'block';
         input.value = '';
         input.focus();
+        this.gameState.inputLocked = true;   // ← add this
+
         const onEnter = (e) => {
             if (e.key === 'Enter' && input.value.trim().length > 0) {
                 input.style.display = 'none';
                 input.removeEventListener('keydown', onEnter);
+                this.gameState.inputLocked = false;   // ← add this
                 callback(input.value.trim());
             }
         };
@@ -540,7 +541,7 @@ class OverworldScene extends Phaser.Scene {
         this.gameState.inputLocked = true;
         const scene = this;
 
-        // Spawn Sam at a safe, walkable spot (column 5, row 22)
+        // Spawn Sam
         const samStartCol = 5, samStartRow = 22;
         this.samSprite = this.add.sprite(samStartCol * 16 + 8, samStartRow * 16 + 8, 'sam');
         this.samSprite.setOrigin(0.5).setDepth(2);
@@ -548,18 +549,38 @@ class OverworldScene extends Phaser.Scene {
         const eq = new EventQueue(this);
 
         eq
-        // Walk Sam to column 3 (next to the player)
+        // Walk Sam to the player
         .moveNpc(this.samSprite, [
             {x: 4, y: 22},
             {x: 3, y: 22}
         ])
-        // Dialogue chain
+        // Sam’s warning
         .message('"Wait! Stop right there!"')
         .message('"Don\'t peruse those shelves! It\'s unsafe! Wild Bibliomon live in tall stacks! Let me show you how to handle them."')
+        // Ask for the player’s name
+        .message('"But first, what was your name again?"')
+        .run(() => {
+            eq.pause();
+            scene.showNameInput((name) => {
+                scene.gameState.playerName = name;
+                eq.resume();
+            });
+        })
+        // Ask for the rival’s name
+        .message(`"Ah yes, ${scene.gameState.playerName}. And what do you call your rival?"`)
+        .run(() => {
+            eq.pause();
+            scene.showNameInput((rivalName) => {
+                scene.gameState.rivalName = rivalName;
+                saveGameData();
+                eq.resume();
+            });
+        })
+        // Capture demonstration
         .message('A wild Bibliomon appeared!')
         .message('Sam used a Library Card!')
         .message('Gotcha! Artificial Intelligence: A Modern Approach was caught!')
-        // Remove Sam and teleport
+        // Remove Sam and teleport to reception
         .run(() => {
             if (scene.samSprite) {
                 scene.samSprite.destroy();
@@ -569,39 +590,73 @@ class OverworldScene extends Phaser.Scene {
             scene.gameState.player.tileY = 26;
             scene.gameState.player.facing = 'left';
             scene.player.setPosition(11 * 16 + 8, 26 * 16 + 8);
-            scene.gameState.inputLocked = false;
         })
         .wait(400)
-        // Give AI book
-        .message(`You received ${ALL_BOOKS['ai_modern_approach_base'].name}!`)
+        // Actually give the AI book
+        .run(() => {
+            const bookId = 'ai_modern_approach_base';
+            scene.gameState.backpack.push(createBookInstance(bookId, 5));
+            scene.showMessage(`You received ${ALL_BOOKS[bookId].name}!`);
+        })
+        .wait(1200)
         // Rival entrance
         .run(() => {
             scene.rivalSprite = scene.add.sprite(14 * 16 + 8, 26 * 16 + 8, 'rival');
             scene.rivalSprite.setOrigin(0.5).setDepth(2);
         })
-        .moveNpc(this.rivalSprite, [
+        .moveNpc(scene.rivalSprite, [
             {x: 13, y: 26},
             {x: 12, y: 26},
             {x: 11, y: 26}
         ])
-        .message('"Hey! I already have a special Bibliomon. I don\'t need those old things!"', ['Who are you?'])
-        .message('"I\'m your rival! And this is my partner – The Creative Spark: Human Ingenuity!"')
+        .message(`"Hey! I already have a special Bibliomon. I don\'t need those old things!"`, ['Who are you?'])
+        .message(`"I\'m your rival, ${scene.gameState.rivalName || 'Rival'}! And this is my partner – The Creative Spark: Human Ingenuity!"`)
         .message('"A machine may learn, but true creativity is human. See you in the stacks!"')
+        // Launch the rival battle
         .run(() => {
+            const rivalBook = createBookInstance('rival_special_base', 5);
+            const rivalName = scene.gameState.rivalName || 'Rival';
+
+            scene.gameState.gymState = { phase: 'rival_intro' };
+            scene.gameState.mode = 'battle';
+            scene.gameState.battle = {
+                type: 'trainer',
+                opponent: rivalBook,
+                trainer: {
+                    id: 'rival_intro',
+                    name: rivalName,
+                    books: [{ id: 'rival_special_base', level: 5 }]
+                },
+                trainerBookIndex: 0
+            };
+            scene.scene.launch('Battle', {
+                battleType: 'trainer',
+                opponent: rivalBook,
+                trainer: scene.gameState.battle.trainer
+            });
+            scene.scene.pause();
+
+            // Clean up the rival sprite
             if (scene.rivalSprite) {
                 scene.rivalSprite.destroy();
                 scene.rivalSprite = null;
             }
-        })
-        .message('Sam: "Good luck, both of you! The Library is now open. Go forth and research!"')
-        .run(() => {
-            scene.gameState.introCompleted = true;
-            saveGameData();
-            scene.gameState.mode = 'walk';
-            scene.gameState.inputLocked = false;
+
+            // Mark the queue as complete so it doesn't interfere with the callback
+            eq.done = true;
         });
 
         eq.start();
+    }
+
+    onRivalBattleEnd() {
+        this.showMessage('Sam: "Good luck, both of you! The Library is now open. Go forth and research!"', () => {
+            this.gameState.introCompleted = true;
+            saveGameData();
+            this.gameState.mode = 'walk';
+            this.gameState.inputLocked = false;
+            this.gameState.gymState = null;
+        });
     }
 
     moveAlongPath(sprite, path, index, onDone) {

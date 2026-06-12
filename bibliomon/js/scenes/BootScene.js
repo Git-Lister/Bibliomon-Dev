@@ -11,7 +11,7 @@ class BootScene extends Phaser.Scene {
         this.generateTileset();
         this.generatePlayerSpritesheet();
         this.generateBookSprites();
-        this.scene.start('Overworld');
+        this.scene.start('Title');
         this.generateCharacterSprites();
     }
 

@@ -7,6 +7,7 @@ class EventQueue {
         this.queue = [];            // array of actions
         this.running = false;
         this.finishedCallback = null;
+        
     }
 
     // Add an action that moves an NPC sprite step‑by‑step along a tile path
@@ -88,6 +89,7 @@ class EventQueue {
     }
 
     processNext() {
+        if (this._paused) return
         if (this.queue.length === 0) {
             this.running = false;
             if (this.finishedCallback) this.finishedCallback();
@@ -95,5 +97,14 @@ class EventQueue {
         }
         const action = this.queue.shift();
         action(() => this.processNext());
+    }
+
+    pause() {
+    this._paused = true;
+    }
+
+    resume() {
+        this._paused = false;
+        this.processNext();   // continue processing the queue
     }
 }

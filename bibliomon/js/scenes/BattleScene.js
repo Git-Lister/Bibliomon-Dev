@@ -244,7 +244,17 @@ class BattleScene extends Phaser.Scene {
     }
 
     returnToOverworld() {
-        // If this was a gym battle, notify the overworld to advance the sequence
+        // Rival intro battle callback
+        if (window.gameState.gymState && window.gameState.gymState.phase === 'rival_intro') {
+            const overworld = this.scene.get('Overworld');
+            if (overworld && overworld.onRivalBattleEnd) {
+                overworld.onRivalBattleEnd();
+                this.scene.stop();   // stop battle scene – overworld will be resumed in onRivalBattleEnd
+                return;
+            }
+        }
+
+        // Gym battle callback (existing)
         if (window.gameState.gymState && this.trainer) {
             const overworld = this.scene.get('Overworld');
             if (overworld && overworld.onGymBattleEnd) {
@@ -252,6 +262,7 @@ class BattleScene extends Phaser.Scene {
             }
         }
 
+        // Normal return – for wild and regular trainer battles
         this.gameState.mode = 'walk';
         this.scene.stop();
         this.scene.resume('Overworld');
