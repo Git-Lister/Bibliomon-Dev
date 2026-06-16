@@ -210,7 +210,6 @@ class OverworldScene extends Phaser.Scene {
                 this.showMessage('The security gate is locked. Validate your card at Reception first.');
                 return;
             }
-            // Card is valid – allow passage (direction restrictions will be added later)
         }
 
         // Exit gate (Y) – only allow leaving from the right
@@ -219,7 +218,7 @@ class OverworldScene extends Phaser.Scene {
                 this.showMessage('The security gate is locked. Validate your card at Reception first.');
                 return;
             }
-            if (p.tileX <= nextCol) return;   // block if you're still left of the gate
+            if (p.tileX <= nextCol) return;
         }
 
         // ── Other special tiles ──────────────────────────────────────────
@@ -236,7 +235,7 @@ class OverworldScene extends Phaser.Scene {
             return;
         }
 
-        // ── Normal walk (no gate logic) ──────────────────────────────────
+        // ── Normal walk ──────────────────────────────────────────────────
         this.performMove(dx, dy, nextCol, nextRow, tile);
     }
 
@@ -260,52 +259,45 @@ class OverworldScene extends Phaser.Scene {
     checkTileAfterMove(col, row, tile) {
         if (this.gameState.mode !== 'walk' || this.gameState.inputLocked) return;
 
-    // Wild encounters (only on bookshelf tiles)
-    if (tile === 'S') {
-        if (Math.random() < 0.10) {
-            const roll = Math.random();
-            let bid = 'thermo_base', lvl = 2;
+        // Wild encounters (only on bookshelf tiles)
+        if (tile === 'S') {
+            if (Math.random() < 0.10) {
+                const roll = Math.random();
+                let bid = 'thermo_base', lvl = 2;
 
-            // Science & Engineering (2 options)
-            if (roll < 0.25) {
-                bid = 'thermo_base';
-                lvl = Math.random() < 0.5 ? 2 : 3;
-            } else if (roll < 0.50) {
-                bid = 'algorithms_base';
-                lvl = Math.random() < 0.5 ? 2 : 3;
-            }
-            // Arts & Humanities (2 options)
-            else if (roll < 0.60) {
-                bid = 'norton_anthology_base';
-                lvl = Math.random() < 0.5 ? 3 : 4;
-            } else if (roll < 0.70) {
-                bid = 'ways_of_seeing_base';
-                lvl = Math.random() < 0.5 ? 3 : 4;
-            }
-            // Business & Law (2 options)
-            else if (roll < 0.80) {
-                bid = 'company_law_base';
-                lvl = 3;
-            } else if (roll < 0.90) {
-                bid = 'econ_dummies_base';
-                lvl = 4;
-            }
-            // Health & Education (2 options)
-            else if (roll < 0.95) {
-                bid = 'human_body_base';
-                lvl = 4;
-            } else {
-                bid = 'becoming_nurse_base';
-                lvl = 4;
-            }
+                if (roll < 0.25) {
+                    bid = 'thermo_base';
+                    lvl = Math.random() < 0.5 ? 2 : 3;
+                } else if (roll < 0.50) {
+                    bid = 'algorithms_base';
+                    lvl = Math.random() < 0.5 ? 2 : 3;
+                } else if (roll < 0.60) {
+                    bid = 'norton_anthology_base';
+                    lvl = Math.random() < 0.5 ? 3 : 4;
+                } else if (roll < 0.70) {
+                    bid = 'ways_of_seeing_base';
+                    lvl = Math.random() < 0.5 ? 3 : 4;
+                } else if (roll < 0.80) {
+                    bid = 'company_law_base';
+                    lvl = 3;
+                } else if (roll < 0.90) {
+                    bid = 'econ_dummies_base';
+                    lvl = 4;
+                } else if (roll < 0.95) {
+                    bid = 'human_body_base';
+                    lvl = 4;
+                } else {
+                    bid = 'becoming_nurse_base';
+                    lvl = 4;
+                }
 
-            const opponent = createBookInstance(bid, lvl);
-            this.gameState.mode = 'battle';
-            this.gameState.battle = { type: 'wild', opponent, trainer: null };
-            this.scene.launch('Battle', { battleType: 'wild', opponent });
-            this.scene.pause();
+                const opponent = createBookInstance(bid, lvl);
+                this.gameState.mode = 'battle';
+                this.gameState.battle = { type: 'wild', opponent, trainer: null };
+                this.scene.launch('Battle', { battleType: 'wild', opponent });
+                this.scene.pause();
+            }
         }
-    }
 
         // Trainer battles
         if (tile === 'T' && this.gameState.currentMap === 'ground') {
@@ -319,7 +311,7 @@ class OverworldScene extends Phaser.Scene {
             }
         }
 
-        // ── Intro trigger (first step into the library proper) ──────────────────────
+        // ── Intro trigger (first step into the library proper) ───────────
         const introTiles = [{x:1, y:22}, {x:2, y:22}];
         const trigger = introTiles.find(t => t.x === col && t.y === row);
         if (trigger && !this.gameState.introCompleted &&
@@ -514,20 +506,34 @@ class OverworldScene extends Phaser.Scene {
     }
 
     // ═══════════════════════════════════════════════════════════════════════
-    //  Name Input Helper (shows text box overlay for organic naming)
+    //  Name Input Helper — safely releases WASD while typing
     // ═══════════════════════════════════════════════════════════════════════
     showNameInput(callback) {
+        // Remove movement keys so the HTML input receives them as text
+        [
+            Phaser.Input.Keyboard.KeyCodes.W,
+            Phaser.Input.Keyboard.KeyCodes.A,
+            Phaser.Input.Keyboard.KeyCodes.S,
+            Phaser.Input.Keyboard.KeyCodes.D,
+            Phaser.Input.Keyboard.KeyCodes.UP,
+            Phaser.Input.Keyboard.KeyCodes.DOWN,
+            Phaser.Input.Keyboard.KeyCodes.LEFT,
+            Phaser.Input.Keyboard.KeyCodes.RIGHT
+        ].forEach(code => this.input.keyboard.removeKey(code));
+
         const input = document.getElementById('nameInput');
         input.style.display = 'block';
         input.value = '';
         input.focus();
-        this.gameState.inputLocked = true;   // ← add this
 
         const onEnter = (e) => {
             if (e.key === 'Enter' && input.value.trim().length > 0) {
                 input.style.display = 'none';
                 input.removeEventListener('keydown', onEnter);
-                this.gameState.inputLocked = false;   // ← add this
+
+                // Re‑register movement keys exactly as before
+                this.setupInput();
+
                 callback(input.value.trim());
             }
         };
@@ -541,7 +547,6 @@ class OverworldScene extends Phaser.Scene {
         this.gameState.inputLocked = true;
         const scene = this;
 
-        // Spawn Sam
         const samStartCol = 5, samStartRow = 22;
         this.samSprite = this.add.sprite(samStartCol * 16 + 8, samStartRow * 16 + 8, 'sam');
         this.samSprite.setOrigin(0.5).setDepth(2);
@@ -549,15 +554,9 @@ class OverworldScene extends Phaser.Scene {
         const eq = new EventQueue(this);
 
         eq
-        // Walk Sam to the player
-        .moveNpc(this.samSprite, [
-            {x: 4, y: 22},
-            {x: 3, y: 22}
-        ])
-        // Sam’s warning
+        .moveNpc(this.samSprite, [{x:4,y:22},{x:3,y:22}])
         .message('"Wait! Stop right there!"')
         .message('"Don\'t peruse those shelves! It\'s unsafe! Wild Bibliomon live in tall stacks! Let me show you how to handle them."')
-        // Ask for the player’s name
         .message('"But first, what was your name again?"')
         .run(() => {
             eq.pause();
@@ -566,7 +565,6 @@ class OverworldScene extends Phaser.Scene {
                 eq.resume();
             });
         })
-        // Ask for the rival’s name
         .message(`"Ah yes, ${scene.gameState.playerName}. And what do you call your rival?"`)
         .run(() => {
             eq.pause();
@@ -576,43 +574,31 @@ class OverworldScene extends Phaser.Scene {
                 eq.resume();
             });
         })
-        // Capture demonstration
         .message('A wild Bibliomon appeared!')
         .message('Sam used a Library Card!')
         .message('Gotcha! Artificial Intelligence: A Modern Approach was caught!')
-        // Remove Sam and teleport to reception
         .run(() => {
-            if (scene.samSprite) {
-                scene.samSprite.destroy();
-                scene.samSprite = null;
-            }
+            if (scene.samSprite) { scene.samSprite.destroy(); scene.samSprite = null; }
             scene.gameState.player.tileX = 11;
             scene.gameState.player.tileY = 26;
             scene.gameState.player.facing = 'left';
             scene.player.setPosition(11 * 16 + 8, 26 * 16 + 8);
         })
         .wait(400)
-        // Actually give the AI book
         .run(() => {
             const bookId = 'ai_modern_approach_base';
             scene.gameState.backpack.push(createBookInstance(bookId, 5));
             scene.showMessage(`You received ${ALL_BOOKS[bookId].name}!`);
         })
         .wait(1200)
-        // Rival entrance
         .run(() => {
             scene.rivalSprite = scene.add.sprite(14 * 16 + 8, 26 * 16 + 8, 'rival');
             scene.rivalSprite.setOrigin(0.5).setDepth(2);
         })
-        .moveNpc(scene.rivalSprite, [
-            {x: 13, y: 26},
-            {x: 12, y: 26},
-            {x: 11, y: 26}
-        ])
+        .moveNpc(scene.rivalSprite, [{x:13,y:26},{x:12,y:26},{x:11,y:26}])
         .message(`"Hey! I already have a special Bibliomon. I don\'t need those old things!"`, ['Who are you?'])
         .message(`"I\'m your rival, ${scene.gameState.rivalName || 'Rival'}! And this is my partner – The Creative Spark: Human Ingenuity!"`)
         .message('"A machine may learn, but true creativity is human. See you in the stacks!"')
-        // Launch the rival battle
         .run(() => {
             const rivalBook = createBookInstance('rival_special_base', 5);
             const rivalName = scene.gameState.rivalName || 'Rival';
@@ -625,24 +611,15 @@ class OverworldScene extends Phaser.Scene {
                 trainer: {
                     id: 'rival_intro',
                     name: rivalName,
+                    dialogue: `"I'm ${rivalName}! Let's test our new Bibliomon right now!"`,
                     books: [{ id: 'rival_special_base', level: 5 }]
                 },
                 trainerBookIndex: 0
             };
-            scene.scene.launch('Battle', {
-                battleType: 'trainer',
-                opponent: rivalBook,
-                trainer: scene.gameState.battle.trainer
-            });
+            scene.scene.launch('Battle', { battleType: 'trainer', opponent: rivalBook, trainer: scene.gameState.battle.trainer });
             scene.scene.pause();
 
-            // Clean up the rival sprite
-            if (scene.rivalSprite) {
-                scene.rivalSprite.destroy();
-                scene.rivalSprite = null;
-            }
-
-            // Mark the queue as complete so it doesn't interfere with the callback
+            if (scene.rivalSprite) { scene.rivalSprite.destroy(); scene.rivalSprite = null; }
             eq.done = true;
         });
 
@@ -660,118 +637,30 @@ class OverworldScene extends Phaser.Scene {
     }
 
     moveAlongPath(sprite, path, index, onDone) {
-        if (index >= path.length) {
-            if (onDone) onDone();
-            return;
-        }
+        if (index >= path.length) { if (onDone) onDone(); return; }
         this.tweens.add({
             targets: sprite,
-            x: path[index].x,
-            y: path[index].y,
-            duration: 100,
-            ease: 'Linear',
-            onComplete: () => {
-                this.moveAlongPath(sprite, path, index + 1, onDone);
-            }
-        });
-    }
-
-    // Capture demonstration sequence
-    showCaptureSequence() {
-        this.showMessage('A wild Bibliomon appeared!', () => {
-            this.launchDialogue('Sam used a Library Card!', () => {
-                this.showMessage('Gotcha! Artificial Intelligence: A Modern Approach was caught!', () => {
-                    if (this.samSprite) {
-                        this.samSprite.destroy();
-                        this.samSprite = null;
-                    }
-                    this.walkToReception();
-                });
-            });
-        });
-    }
-
-    walkToReception() {
-        this.gameState.player.tileX = 11; this.gameState.player.tileY = 26;
-        this.gameState.player.facing = 'left';
-        this.player.setPosition(11 * 16 + 8, 26 * 16 + 8);
-        this.gameState.inputLocked = false;
-        this.time.delayedCall(400, () => this.giveAIBook());
-    }
-
-    giveAIBook() {
-        const bookId = 'ai_modern_approach_base';
-        this.gameState.backpack.push(createBookInstance(bookId, 5));
-        this.showMessage(`You received ${ALL_BOOKS[bookId].name}!`, () => {
-            this.showRivalScene();
-        });
-    }
-
-    showRivalScene() {
-        const rivalStartX = 14, rivalStartY = 26;
-        this.rivalSprite = this.add.sprite(rivalStartX * 16 + 8, rivalStartY * 16 + 8, 'rival');
-        this.rivalSprite.setOrigin(0.5);
-        this.rivalSprite.setDepth(2);
-
-        this.tweens.add({
-            targets: this.rivalSprite,
-            x: 11 * 16 + 8,
-            y: 26 * 16 + 8,
-            duration: 600,
-            ease: 'Linear',
-            onComplete: () => {
-                this.launchDialogue(
-                    '"Hey! I already have a special Bibliomon. I don\'t need those old things!"',
-                    () => {
-                        this.launchDialogue(
-                            '"I\'m your rival! And this is my partner – The Creative Spark: Human Ingenuity!"',
-                            () => {
-                                this.showMessage('"A machine may learn, but true creativity is human. See you in the stacks!"', () => {
-                                    if (this.rivalSprite) {
-                                        this.rivalSprite.destroy();
-                                        this.rivalSprite = null;
-                                    }
-                                    this.finishIntro();
-                                });
-                            }
-                        );
-                    },
-                    ['Who are you?']
-                );
-            }
-        });
-    }
-
-    finishIntro() {
-        this.gameState.introCompleted = true;
-        saveGameData();
-        this.showMessage('Sam: "Good luck, both of you! The Library is now open. Go forth and research!"', () => {
-            this.gameState.mode = 'walk';
-            this.gameState.inputLocked = false;
+            x: path[index].x * 16 + 8, y: path[index].y * 16 + 8,
+            duration: 100, ease: 'Linear',
+            onComplete: () => { this.moveAlongPath(sprite, path, index + 1, onDone); }
         });
     }
 
     // ── Helper – launch Dialogue without double‑pausing ─────────────────
     launchDialogue(text, callback, choices = null) {
         this.scene.launch('Dialogue', {
-            text: text,
-            choices: choices,
+            text, choices,
             choiceCallback: choices ? () => { if (callback) callback(); } : null,
             callback: choices ? null : (callback || null)
         });
-        if (this.scene.isActive('Overworld')) {
-            this.scene.pause();
-        }
+        if (this.scene.isActive('Overworld')) this.scene.pause();
     }
 
     // ═══════════════════════════════════════════════════════════════════════
     //  Gym Challenge (Floor 1)
     // ═══════════════════════════════════════════════════════════════════════
     startGymChallenge() {
-        if (this.gameState.gym1Defeated) {
-            this.showMessage('You have already conquered the Special Collections Gym.');
-            return;
-        }
+        if (this.gameState.gym1Defeated) { this.showMessage('You have already conquered the Special Collections Gym.'); return; }
         this.gameState.gymState = { phase: 'intro', trainerIndex: 0 };
         this.showMessage('Welcome to the Special Collections Gym!', () => this.startNextGymBattle());
     }
@@ -804,11 +693,9 @@ class OverworldScene extends Phaser.Scene {
     onGymBattleEnd() {
         const gs = this.gameState.gymState;
         if (!gs) return;
-        if (gs.phase === 'trainer1') {
-            gs.phase = 'trainer2'; this.startNextGymBattle();
-        } else if (gs.phase === 'trainer2') {
-            gs.phase = 'leader'; this.startNextGymBattle();
-        } else if (gs.phase === 'leader') {
+        if (gs.phase === 'trainer1') { gs.phase = 'trainer2'; this.startNextGymBattle(); }
+        else if (gs.phase === 'trainer2') { gs.phase = 'leader'; this.startNextGymBattle(); }
+        else if (gs.phase === 'leader') {
             this.gameState.gym1Defeated = true;
             this.gameState.badges.push('archive_badge');
             this.gameState.gymState = null;
@@ -821,6 +708,9 @@ class OverworldScene extends Phaser.Scene {
     //  Main Loop
     // ═══════════════════════════════════════════════════════════════════════
     update(time, delta) {
+        const nameInput = document.getElementById('nameInput');
+        if (nameInput && nameInput.style.display !== 'none') return;
+
         const p = this.gameState.player;
         if (this.gameState.mode !== 'walk' || this.gameState.inputLocked || p.isMoving) return;
 
