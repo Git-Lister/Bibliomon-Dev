@@ -511,10 +511,23 @@ class OverworldScene extends Phaser.Scene {
             fontFamily: 'monospace', fontSize: '10px', fill: '#888888'
         }).setOrigin(0.5).setDepth(101);
 
+        // ── Blinking cursor ──────────────────────────────────────────────
+        const cursor = this.add.text(0, 0, '|', {
+            fontFamily: 'monospace', fontSize: '20px', fill: '#ffcc00'
+        }).setOrigin(0.5).setDepth(101);
+        this.tweens.add({
+            targets: cursor,
+            alpha: 0,
+            duration: 400,
+            yoyo: true,
+            repeat: -1
+        });
+        // ──────────────────────────────────────────────────────────────────
+
         const onKey = (event) => {
             if (event.key === 'Enter' && name.length > 0) {
                 this.input.keyboard.off('keydown', onKey);
-                overlay.destroy(); prompt.destroy(); nameText.destroy(); instr.destroy();
+                overlay.destroy(); prompt.destroy(); nameText.destroy(); instr.destroy(); cursor.destroy();
                 this.gameState.mode = 'walk';
                 this.gameState.inputLocked = false;
                 callback(name);
@@ -526,6 +539,7 @@ class OverworldScene extends Phaser.Scene {
                 name += event.key;
             }
             nameText.setText(name);
+            cursor.setPosition(nameText.x + nameText.width / 2 + 8, nameText.y);
         };
 
         this.input.keyboard.on('keydown', onKey);

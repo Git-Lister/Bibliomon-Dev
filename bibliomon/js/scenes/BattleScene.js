@@ -139,6 +139,17 @@ class BattleScene extends Phaser.Scene {
 
     animateFaint(sprite) {
         if (!sprite) return;
+        // Particle burst
+        this.add.particles(sprite.x, sprite.y, 'particle', {
+            speed: { min: 20, max: 60 },
+            angle: { min: 0, max: 360 },
+            scale: { start: 1, end: 0 },
+            lifespan: 400,
+            quantity: 8,
+            emitting: false
+        }).explode();
+
+        // Fade out
         this.tweens.add({
             targets: sprite,
             alpha: 0,

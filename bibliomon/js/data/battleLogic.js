@@ -129,7 +129,9 @@ function executeMove(moveId, attacker, defender, atkStages, defStages, attName, 
 
                 if (dmgResult.eff > 1) msg += ' Super effective!';
                 if (dmgResult.eff < 1) msg += ' Not very effective…';
-
+                if (window.gameState.activeBattleScene && dmgResult.eff > 1) {
+                    window.gameState.activeBattleScene.cameras.main.shake(200, 0.005);
+                }
                 if (move.effect === 'recoil33') {
                     let rec = Math.floor(totalDmg * 0.33);
                     attacker.currentHP = Math.max(0, attacker.currentHP - rec);
