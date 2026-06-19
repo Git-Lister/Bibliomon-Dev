@@ -8,13 +8,12 @@ class BootScene extends Phaser.Scene {
     }
 
     create() {
-        // ── Phase 1: generate a tiny particle texture for faint effects ─────
+        // ── Particle texture for faint effects (Phase 1) ─────────────────
         const pg = this.add.graphics();
         pg.fillStyle(0xffffff);
         pg.fillCircle(4, 4, 4);
         pg.generateTexture('particle', 8, 8);
         pg.destroy();
-        // ──────────────────────────────────────────────────────────────────────
 
         this.generateTileset();
         this.generatePlayerSpritesheet();
@@ -71,7 +70,6 @@ class BootScene extends Phaser.Scene {
         };
         const frameWidth = 48, frameHeight = 48;
 
-        // Front sprites (opponent) – one per type
         types.forEach(type => {
             const canvas = document.createElement('canvas');
             canvas.width = frameWidth; canvas.height = frameHeight;
@@ -102,7 +100,6 @@ class BootScene extends Phaser.Scene {
             this.textures.addImage(`book_front_${type}`, canvas);
         });
 
-        // Back sprite (player's book)
         const backCanvas = document.createElement('canvas');
         backCanvas.width = frameWidth; backCanvas.height = frameHeight;
         const bCtx = backCanvas.getContext('2d');
@@ -119,7 +116,6 @@ class BootScene extends Phaser.Scene {
         this.textures.addImage('book_back', backCanvas);
     }
 
-    // ── Generate a 16×16 tileset with one tile per map character ──────────
     generateTileset() {
         const tileSize = 16;
         const cols = 16;
@@ -129,7 +125,6 @@ class BootScene extends Phaser.Scene {
         canvas.height = rows * tileSize;
         const ctx = canvas.getContext('2d');
 
-        // ── Tile mapping: index → map char ─────────────────────────────────
         const tileDefs = [
             { char: '.', color: '#fafaf9', detail: 'dot'        },
             { char: 'W', color: '#27272a', stroke: '#18181b'  },
@@ -163,30 +158,42 @@ class BootScene extends Phaser.Scene {
             const x = col * tileSize;
             const y = row * tileSize;
 
-            // Fill base colour
             ctx.fillStyle = def.color;
             ctx.fillRect(x, y, tileSize, tileSize);
 
-            // Add detail
-            if (def.char === 'W' && def.stroke) {
-                ctx.strokeStyle = def.stroke;
-                ctx.lineWidth = 1;
-                ctx.strokeRect(x, y, tileSize, tileSize);
-            // ── Phase 1: carpet dither (replaces the old single dot) ─────────
-            } else if (def.detail === 'dot') {
-                ctx.fillStyle = '#d6d3d1';
-                for (let i = 0; i < 4; i++) {
-                    const dx = Math.floor(Math.random() * 12) + 2;
-                    const dy = Math.floor(Math.random() * 12) + 2;
-                    ctx.fillRect(x + dx, y + dy, 1, 1);
+            // ── Phase 2: brutalist concrete mortar lines ───────────────
+            if (def.char === 'W') {
+                ctx.fillStyle = '#2a2a2e';
+                ctx.fillRect(x, y, tileSize, tileSize);
+                ctx.fillStyle = '#1e1e22';
+                for (let my = 4; my < tileSize; my += 5) {
+                    ctx.fillRect(x, y + my, tileSize, 1);
                 }
-            // ──────────────────────────────────────────────────────────────────
+                // Edge highlight – top & left
+                ctx.fillStyle = '#3a3a40';
+                ctx.fillRect(x, y, tileSize, 1);
+                ctx.fillRect(x, y, 1, tileSize);
+                if (def.stroke) {
+                    ctx.strokeStyle = def.stroke;
+                    ctx.lineWidth = 1;
+                    ctx.strokeRect(x, y, tileSize, tileSize);
+                }
+            // ── Phase 2: visible floor crosshatch ──────────────────────
+            } else if (def.detail === 'dot') {
+                ctx.fillStyle = '#fafaf9';
+                ctx.fillRect(x, y, tileSize, tileSize);
+                ctx.fillStyle = '#e8e4e0';
+                ctx.fillRect(x + 2, y + 6, 12, 1);
+                ctx.fillRect(x + 6, y + 2, 1, 12);
+            // ── Phase 2: bookshelf shadow ──────────────────────────────
             } else if (def.detail === 'books') {
                 const colors = ['#c0392b', '#2980b9', '#27ae60', '#16a085'];
                 colors.forEach((c, i) => {
                     ctx.fillStyle = c;
                     ctx.fillRect(x + 1 + i * 4, y, 2, 10);
                 });
+                ctx.fillStyle = 'rgba(0,0,0,0.3)';
+                ctx.fillRect(x, y + tileSize - 2, tileSize, 2);
             } else if (def.detail === 'student') {
                 ctx.fillStyle = '#166534';
                 ctx.fillRect(x + 4, y + 6, 8, 8);
@@ -288,7 +295,6 @@ class BootScene extends Phaser.Scene {
         window.tileIndexMap = this.tileIndexMap;
     }
 
-    // ── Generate a 4-directional player walking spritesheet ─────────────────
     generatePlayerSpritesheet() {
         const frameWidth = 16;
         const frameHeight = 16;
