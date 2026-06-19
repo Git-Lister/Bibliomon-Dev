@@ -265,31 +265,14 @@ class OverworldScene extends Phaser.Scene {
                 const roll = Math.random();
                 let bid = 'thermo_base', lvl = 2;
 
-                if (roll < 0.25) {
-                    bid = 'thermo_base';
-                    lvl = Math.random() < 0.5 ? 2 : 3;
-                } else if (roll < 0.50) {
-                    bid = 'algorithms_base';
-                    lvl = Math.random() < 0.5 ? 2 : 3;
-                } else if (roll < 0.60) {
-                    bid = 'norton_anthology_base';
-                    lvl = Math.random() < 0.5 ? 3 : 4;
-                } else if (roll < 0.70) {
-                    bid = 'ways_of_seeing_base';
-                    lvl = Math.random() < 0.5 ? 3 : 4;
-                } else if (roll < 0.80) {
-                    bid = 'company_law_base';
-                    lvl = 3;
-                } else if (roll < 0.90) {
-                    bid = 'econ_dummies_base';
-                    lvl = 4;
-                } else if (roll < 0.95) {
-                    bid = 'human_body_base';
-                    lvl = 4;
-                } else {
-                    bid = 'becoming_nurse_base';
-                    lvl = 4;
-                }
+                if (roll < 0.25) { bid = 'thermo_base'; lvl = Math.random() < 0.5 ? 2 : 3; }
+                else if (roll < 0.50) { bid = 'algorithms_base'; lvl = Math.random() < 0.5 ? 2 : 3; }
+                else if (roll < 0.60) { bid = 'norton_anthology_base'; lvl = Math.random() < 0.5 ? 3 : 4; }
+                else if (roll < 0.70) { bid = 'ways_of_seeing_base'; lvl = Math.random() < 0.5 ? 3 : 4; }
+                else if (roll < 0.80) { bid = 'company_law_base'; lvl = 3; }
+                else if (roll < 0.90) { bid = 'econ_dummies_base'; lvl = 4; }
+                else if (roll < 0.95) { bid = 'human_body_base'; lvl = 4; }
+                else { bid = 'becoming_nurse_base'; lvl = 4; }
 
                 const opponent = createBookInstance(bid, lvl);
                 this.gameState.mode = 'battle';
@@ -506,43 +489,51 @@ class OverworldScene extends Phaser.Scene {
     }
 
     // ═══════════════════════════════════════════════════════════════════════
-    //  Name Input Helper — safely releases WASD while typing
+    //  Name Entry (Phaser‑native overlay – no HTML input, no WASD conflict)
     // ═══════════════════════════════════════════════════════════════════════
-    showNameInput(callback) {
-        // Remove movement keys so the HTML input receives them as text
-        [
-            Phaser.Input.Keyboard.KeyCodes.W,
-            Phaser.Input.Keyboard.KeyCodes.A,
-            Phaser.Input.Keyboard.KeyCodes.S,
-            Phaser.Input.Keyboard.KeyCodes.D,
-            Phaser.Input.Keyboard.KeyCodes.UP,
-            Phaser.Input.Keyboard.KeyCodes.DOWN,
-            Phaser.Input.Keyboard.KeyCodes.LEFT,
-            Phaser.Input.Keyboard.KeyCodes.RIGHT
-        ].forEach(code => this.input.keyboard.removeKey(code));
+    enterName(callback, promptText) {
+        this.gameState.mode = 'naming';
+        this.gameState.inputLocked = true;
 
-        const input = document.getElementById('nameInput');
-        input.style.display = 'block';
-        input.value = '';
-        input.focus();
+        const overlay = this.add.rectangle(320, 240, 640, 480, 0x000000, 0.9).setDepth(100);
+        const prompt = this.add.text(320, 180, promptText, {
+            fontFamily: 'monospace', fontSize: '14px', fill: '#ffffff',
+            align: 'center'
+        }).setOrigin(0.5).setDepth(101);
 
-        const onEnter = (e) => {
-            if (e.key === 'Enter' && input.value.trim().length > 0) {
-                input.style.display = 'none';
-                input.removeEventListener('keydown', onEnter);
+        let name = '';
+        const nameText = this.add.text(320, 250, '', {
+            fontFamily: 'monospace', fontSize: '20px', fill: '#ffcc00',
+            align: 'center'
+        }).setOrigin(0.5).setDepth(101);
 
-                // Re‑register movement keys exactly as before
-                this.setupInput();
+        const instr = this.add.text(320, 320, 'Type your name, then press ENTER', {
+            fontFamily: 'monospace', fontSize: '10px', fill: '#888888'
+        }).setOrigin(0.5).setDepth(101);
 
-                callback(input.value.trim());
+        const onKey = (event) => {
+            if (event.key === 'Enter' && name.length > 0) {
+                this.input.keyboard.off('keydown', onKey);
+                overlay.destroy(); prompt.destroy(); nameText.destroy(); instr.destroy();
+                this.gameState.mode = 'walk';
+                this.gameState.inputLocked = false;
+                callback(name);
+                return;
             }
+            if (event.key === 'Backspace') {
+                name = name.slice(0, -1);
+            } else if (event.key.length === 1 && name.length < 12) {
+                name += event.key;
+            }
+            nameText.setText(name);
         };
-        input.addEventListener('keydown', onEnter);
+
+        this.input.keyboard.on('keydown', onKey);
     }
 
-    // ═══════════════════════════════════════════════════════════════════════
+    // ═══════════════════════════════════════════════════════════════════════════
     //  Intro Sequence (Sam the Library Man)
-    // ═══════════════════════════════════════════════════════════════════════
+    // ═══════════════════════════════════════════════════════════════════════════
     startIntroSequence() {
         this.gameState.inputLocked = true;
         const scene = this;
@@ -560,19 +551,19 @@ class OverworldScene extends Phaser.Scene {
         .message('"But first, what was your name again?"')
         .run(() => {
             eq.pause();
-            scene.showNameInput((name) => {
+            scene.enterName((name) => {
                 scene.gameState.playerName = name;
                 eq.resume();
-            });
+            }, "What's your name?");
         })
-        .message(`"Ah yes, ${scene.gameState.playerName}. And what do you call your rival?"`)
+        .message(`"Ah yes, ${scene.gameState.playerName}. And what should I call your fellow student?"`)
         .run(() => {
             eq.pause();
-            scene.showNameInput((rivalName) => {
+            scene.enterName((rivalName) => {
                 scene.gameState.rivalName = rivalName;
                 saveGameData();
                 eq.resume();
-            });
+            }, "What's your fellow student's name?");
         })
         .message('A wild Bibliomon appeared!')
         .message('Sam used a Library Card!')
@@ -597,11 +588,11 @@ class OverworldScene extends Phaser.Scene {
         })
         .moveNpc(scene.rivalSprite, [{x:13,y:26},{x:12,y:26},{x:11,y:26}])
         .message(`"Hey! I already have a special Bibliomon. I don\'t need those old things!"`, ['Who are you?'])
-        .message(`"I\'m your rival, ${scene.gameState.rivalName || 'Rival'}! And this is my partner – The Creative Spark: Human Ingenuity!"`)
+        .message(`"I\'m a fellow student, ${scene.gameState.rivalName || 'Friend'}! And this is my partner – The Creative Spark: Human Ingenuity!"`)
         .message('"A machine may learn, but true creativity is human. See you in the stacks!"')
         .run(() => {
             const rivalBook = createBookInstance('rival_special_base', 5);
-            const rivalName = scene.gameState.rivalName || 'Rival';
+            const rivalName = scene.gameState.rivalName || 'Friend';
 
             scene.gameState.gymState = { phase: 'rival_intro' };
             scene.gameState.mode = 'battle';
@@ -708,9 +699,6 @@ class OverworldScene extends Phaser.Scene {
     //  Main Loop
     // ═══════════════════════════════════════════════════════════════════════
     update(time, delta) {
-        const nameInput = document.getElementById('nameInput');
-        if (nameInput && nameInput.style.display !== 'none') return;
-
         const p = this.gameState.player;
         if (this.gameState.mode !== 'walk' || this.gameState.inputLocked || p.isMoving) return;
 

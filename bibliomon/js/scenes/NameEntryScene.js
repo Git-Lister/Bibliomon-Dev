@@ -4,12 +4,14 @@ class NameEntryScene extends Phaser.Scene {
     }
 
     init(data) {
-        this.step = 'player';   // 'player' or 'rival'
+        this.step = data.step || 'player';      // 'player' or 'rival'
+        this.callback = data.callback || null;   // called with the entered name
         this.name = '';
     }
 
     create() {
         this.cameras.main.setBackgroundColor('#1a1a1a');
+
         this.prompt = this.add.text(320, 200, '', {
             fontFamily: 'monospace', fontSize: '14px', fill: '#ffffff',
             wordWrap: { width: 500 }, align: 'center'
@@ -26,6 +28,7 @@ class NameEntryScene extends Phaser.Scene {
 
         this.updatePrompt();
 
+        // Capture every printable key – NO addKey calls for WASD here
         this.input.keyboard.on('keydown', (event) => {
             if (event.key === 'Enter') {
                 if (this.name.length > 0) {
@@ -34,7 +37,6 @@ class NameEntryScene extends Phaser.Scene {
             } else if (event.key === 'Backspace') {
                 this.name = this.name.slice(0, -1);
             } else if (event.key.length === 1 && this.name.length < 12) {
-                // Accept only printable characters
                 this.name += event.key;
             }
             this.nameDisplay.setText(this.name);
@@ -50,16 +52,9 @@ class NameEntryScene extends Phaser.Scene {
     }
 
     confirmName() {
-        if (this.step === 'player') {
-            window.gameState.playerName = this.name;
-            this.step = 'rival';
-            this.name = '';
-            this.nameDisplay.setText('');
-            this.updatePrompt();
-        } else {
-            window.gameState.rivalName = this.name;
-            // Done – go to the overworld
-            this.scene.start('Overworld');
-        }
+        const cb = this.callback;
+        const name = this.name;
+        this.scene.stop();                       // cleanly remove this scene
+        setTimeout(() => { if (cb) cb(name); }, 0);  // let Phaser finish cleanup
     }
 }
