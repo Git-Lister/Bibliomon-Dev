@@ -20,6 +20,7 @@ const SHOPS = {
         ]
     }
 };
+const TILE_SIZE = 32;
 
 class OverworldScene extends Phaser.Scene {
     constructor() {
@@ -105,7 +106,7 @@ class OverworldScene extends Phaser.Scene {
                 }
                 const tileIndex = tileIndexMap[tileChar];
                 if (tileIndex === undefined) continue;
-                const sprite = this.add.sprite(c * 16 + 8, r * 16 + 8, 'tileset', tileIndex);
+                const sprite = this.add.sprite(c * TILE_SIZE + TILE_SIZE / 2, r * TILE_SIZE + TILE_SIZE / 2, 'tileset', tileIndex);
                 sprite.setOrigin(0.5);
                 this.allTiles.add(sprite);
             }
@@ -125,13 +126,13 @@ class OverworldScene extends Phaser.Scene {
     createPlayer() {
         const startCol = this.gameState.player.tileX || 19;
         const startRow = this.gameState.player.tileY || 29;
-        this.player = this.add.sprite(startCol * 16 + 8, startRow * 16 + 8, 'player_walk', 0);
+        this.player = this.add.sprite(startCol * TILE_SIZE + TILE_SIZE / 2, startRow * TILE_SIZE + TILE_SIZE / 2, 'player_walk', 0);
         this.player.setOrigin(0.5);
         this.player.setDepth(2);
         this.player.anims.play('walk_down');
         this.player.anims.pause();
         this.cameras.main.startFollow(this.player, true, 1, 1);
-        this.cameras.main.setBounds(0, 0, 40 * 16, 30 * 16);
+        this.cameras.main.setBounds(0, 0, 40 * TILE_SIZE, 30 * TILE_SIZE);
         this.cameras.main.setRoundPixels(true);
     }
 
@@ -245,7 +246,7 @@ class OverworldScene extends Phaser.Scene {
         p.isMoving = true;
         this.tweens.add({
             targets: this.player,
-            x: nextCol * 16 + 8, y: nextRow * 16 + 8,
+            x: nextCol * TILE_SIZE + TILE_SIZE / 2, y: nextRow * TILE_SIZE + TILE_SIZE / 2,
             duration: 120, ease: 'Linear',
             onComplete: () => {
                 p.tileX = nextCol; p.tileY = nextRow;
@@ -338,7 +339,7 @@ class OverworldScene extends Phaser.Scene {
             }
             this.tweens.add({
                 targets: this.player,
-                x: nextCol * 16 + 8, y: nextRow * 16 + 8,
+                x: nextCol * TILE_SIZE + TILE_SIZE / 2, y: nextRow * TILE_SIZE + TILE_SIZE / 2,
                 duration: 120, ease: 'Linear',
                 onComplete: () => {
                     this.gameState.player.tileX = nextCol;
@@ -553,7 +554,7 @@ class OverworldScene extends Phaser.Scene {
         const scene = this;
 
         const samStartCol = 5, samStartRow = 22;
-        this.samSprite = this.add.sprite(samStartCol * 16 + 8, samStartRow * 16 + 8, 'sam');
+        this.samSprite = this.add.sprite(samStartCol * TILE_SIZE + TILE_SIZE / 2, samStartRow * TILE_SIZE + TILE_SIZE / 2, 'sam');
         this.samSprite.setOrigin(0.5).setDepth(2);
 
         const eq = new EventQueue(this);
@@ -587,7 +588,7 @@ class OverworldScene extends Phaser.Scene {
             scene.gameState.player.tileX = 11;
             scene.gameState.player.tileY = 26;
             scene.gameState.player.facing = 'left';
-            scene.player.setPosition(11 * 16 + 8, 26 * 16 + 8);
+            scene.player.setPosition(11 * TILE_SIZE + TILE_SIZE / 2, 26 * TILE_SIZE + TILE_SIZE / 2);
         })
         .wait(400)
         .run(() => {
@@ -597,7 +598,7 @@ class OverworldScene extends Phaser.Scene {
         })
         .wait(1200)
         .run(() => {
-            scene.rivalSprite = scene.add.sprite(14 * 16 + 8, 26 * 16 + 8, 'rival');
+            scene.rivalSprite = scene.add.sprite(14 * TILE_SIZE + TILE_SIZE / 2, 26 * TILE_SIZE + TILE_SIZE / 2, 'rival');
             scene.rivalSprite.setOrigin(0.5).setDepth(2);
         })
         .moveNpc(scene.rivalSprite, [{x:13,y:26},{x:12,y:26},{x:11,y:26}])
@@ -645,7 +646,7 @@ class OverworldScene extends Phaser.Scene {
         if (index >= path.length) { if (onDone) onDone(); return; }
         this.tweens.add({
             targets: sprite,
-            x: path[index].x * 16 + 8, y: path[index].y * 16 + 8,
+            x: path[index].x * TILE_SIZE + TILE_SIZE / 2, y: path[index].y * TILE_SIZE + TILE_SIZE / 2,
             duration: 100, ease: 'Linear',
             onComplete: () => { this.moveAlongPath(sprite, path, index + 1, onDone); }
         });
