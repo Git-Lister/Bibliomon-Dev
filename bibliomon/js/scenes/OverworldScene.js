@@ -1,6 +1,4 @@
-// ═══════════════════════════════════════════════════════════════════════════
-//  OverworldScene – ground‑floor movement, interactions, intro, puzzle, gym
-// ═══════════════════════════════════════════════════════════════════════════
+
 
 // ── Shop definitions (global so openShop can see them) ──────────────────────
 const SHOPS = {
@@ -164,8 +162,8 @@ class OverworldScene extends Phaser.Scene {
             text: `Welcome to the ${shop.name}! What would you like?`,
             choices: [...itemList, 'Cancel'],
             choiceCallback: (choice) => {
-                if (choice === 'cancel') return;
-                const idx = itemList.findIndex(t => t.toLowerCase() === choice);
+                if (choice === 'Cancel') return;
+                const idx = itemList.findIndex(t => t.toLowerCase() === choice.toLowerCase());
                 if (idx >= 0) {
                     const selected = shop.items[idx];
                     if (scene.gameState.credits >= selected.price) {
@@ -399,24 +397,34 @@ class OverworldScene extends Phaser.Scene {
 
         const tile = this.getTileAt(tx, ty);
 
-        // Reception desk
+        // ─── RECEPTION DESK ───
         if (tile === 'R') {
             const scene = this;
-            if (scene.gameState.player.facing !== 'left') { scene.showMessage('The reception desk is staffed from the front.'); return; }
-            if (scene.gameState.cardValidated) { scene.showMessage('Your Library Card is already valid. Welcome!'); return; }
+            if (scene.gameState.player.facing !== 'left') {
+                scene.showMessage('The reception desk is staffed from the front.');
+                return;
+            }
+            if (scene.gameState.cardValidated) {
+                scene.showMessage('Your Library Card is already valid. Welcome!');
+                return;
+            }
             scene.scene.launch('Dialogue', {
                 text: '"Good morning! May I see your Library Card?"',
                 choices: ['Yes', 'Not yet'],
                 choiceCallback: (choice) => {
-                    if (choice === 'yes') {
+                    if (choice.toLowerCase() === 'yes') {
                         scene.time.delayedCall(150, () => {
                             scene.gameState.cardValidated = true;
                             saveGameData();
                             scene.refreshGates();
+                            scene.showMessage('Card validated! You may now enter the library.');
                         });
                     } else {
                         scene.time.delayedCall(100, () => {
-                            scene.scene.launch('Dialogue', { text: 'Please come back when you have your card.', callback: () => {} });
+                            scene.scene.launch('Dialogue', {
+                                text: 'Please come back when you have your card.',
+                                callback: () => {}
+                            });
                             if (scene.scene.isActive('Overworld')) scene.scene.pause();
                         });
                     }
@@ -426,23 +434,29 @@ class OverworldScene extends Phaser.Scene {
             return;
         }
 
-        // Help Desk
+        // ─── HELP DESK ───
         if (tile === 'H') {
             this.scene.launch('Dialogue', {
                 text: '"Hello! Welcome to the Library. Would you like me to check your books?"',
                 choices: ['Yes', 'No'],
                 choiceCallback: (choice) => {
-                    if (choice === 'yes') {
+                    if (choice.toLowerCase() === 'yes') {
                         this.gameState.backpack.forEach(b => b.currentHP = b.maxHP);
                         this.time.delayedCall(400, () => {
                             this.scene.launch('Dialogue', {
                                 text: 'All books have been restored. Opening your Library Account…',
-                                callback: () => { this.scene.launch('Menu', { mode: 'account' }); this.scene.pause(); }
+                                callback: () => {
+                                    this.scene.launch('Menu', { mode: 'account' });
+                                    this.scene.pause();
+                                }
                             });
                             this.scene.pause();
                         });
                     } else {
-                        this.scene.launch('Dialogue', { text: 'Come back anytime!', callback: () => {} });
+                        this.scene.launch('Dialogue', {
+                            text: 'Come back anytime!',
+                            callback: () => {}
+                        });
                         if (this.scene.isActive('Overworld')) this.scene.pause();
                     }
                 }
@@ -489,78 +503,47 @@ class OverworldScene extends Phaser.Scene {
         if (this.scene.isActive('Overworld')) this.scene.pause();
     }
 
-    // ═══════════════════════════════════════════════════════════════════════
-    //  Name Entry (Phaser‑native overlay – no HTML input, no WASD conflict)
-    // ═══════════════════════════════════════════════════════════════════════
+    // ── Name Entry – launches the dedicated NameEntryScene (DOM‑based) ──
     enterName(callback, promptText) {
         this.gameState.mode = 'naming';
         this.gameState.inputLocked = true;
-
-        const overlay = this.add.rectangle(320, 240, 640, 480, 0x000000, 0.9).setDepth(100);
-        const prompt = this.add.text(320, 180, promptText, {
-            fontFamily: 'monospace', fontSize: '14px', fill: '#ffffff',
-            align: 'center'
-        }).setOrigin(0.5).setDepth(101);
-
-        let name = '';
-        const nameText = this.add.text(320, 250, '', {
-            fontFamily: 'monospace', fontSize: '20px', fill: '#ffcc00',
-            align: 'center'
-        }).setOrigin(0.5).setDepth(101);
-
-        const instr = this.add.text(320, 320, 'Type your name, then press ENTER', {
-            fontFamily: 'monospace', fontSize: '10px', fill: '#888888'
-        }).setOrigin(0.5).setDepth(101);
-
-        // ── Blinking cursor ──────────────────────────────────────────────
-        const cursor = this.add.text(0, 0, '|', {
-            fontFamily: 'monospace', fontSize: '20px', fill: '#ffcc00'
-        }).setOrigin(0.5).setDepth(101);
-        this.tweens.add({
-            targets: cursor,
-            alpha: 0,
-            duration: 400,
-            yoyo: true,
-            repeat: -1
-        });
-        // ──────────────────────────────────────────────────────────────────
-
-        const onKey = (event) => {
-            if (event.key === 'Enter' && name.length > 0) {
-                this.input.keyboard.off('keydown', onKey);
-                overlay.destroy(); prompt.destroy(); nameText.destroy(); instr.destroy(); cursor.destroy();
+        this.scene.launch('NameEntry', {
+            prompt: promptText,
+            callback: (name) => {
                 this.gameState.mode = 'walk';
                 this.gameState.inputLocked = false;
                 callback(name);
-                return;
             }
-            if (event.key === 'Backspace') {
-                name = name.slice(0, -1);
-            } else if (event.key.length === 1 && name.length < 12) {
-                name += event.key;
-            }
-            nameText.setText(name);
-            cursor.setPosition(nameText.x + nameText.width / 2 + 8, nameText.y);
-        };
-
-        this.input.keyboard.on('keydown', onKey);
+        });
+        if (this.scene.isActive('Overworld')) this.scene.pause();
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
-    //  Intro Sequence (Sam the Library Man)
+    //  Intro Sequence – using EventQueue (original, working)
     // ═══════════════════════════════════════════════════════════════════════════
     startIntroSequence() {
         this.gameState.inputLocked = true;
         const scene = this;
 
-        const samStartCol = 5, samStartRow = 22;
-        this.samSprite = this.add.sprite(samStartCol * TILE_SIZE + TILE_SIZE / 2, samStartRow * TILE_SIZE + TILE_SIZE / 2, 'sam');
+        // Sam starts at (8,22) – far right, walks left to (3,22)
+        const samStart = { x: 8, y: 22 };
+        this.samSprite = this.add.sprite(
+            samStart.x * TILE_SIZE + TILE_SIZE/2,
+            samStart.y * TILE_SIZE + TILE_SIZE/2,
+            'sam'
+        );
         this.samSprite.setOrigin(0.5).setDepth(2);
+
+        // Path: 8->7->6->5->4->3
+        const path = [
+            {x:7, y:22}, {x:6, y:22}, {x:5, y:22},
+            {x:4, y:22}, {x:3, y:22}
+        ];
 
         const eq = new EventQueue(this);
 
         eq
-        .moveNpc(this.samSprite, [{x:4,y:22},{x:3,y:22}])
+        .moveNpc(this.samSprite, path)
         .message('"Wait! Stop right there!"')
         .message('"Don\'t peruse those shelves! It\'s unsafe! Wild Bibliomon live in tall stacks! Let me show you how to handle them."')
         .message('"But first, what was your name again?"')
@@ -571,7 +554,7 @@ class OverworldScene extends Phaser.Scene {
                 eq.resume();
             }, "What's your name?");
         })
-        .message(`"Ah yes, ${scene.gameState.playerName}. And what should I call your fellow student?"`)
+        .message(`"Ah yes, ${scene.gameState.playerName || 'you'}. And what should I call your fellow student?"`)
         .run(() => {
             eq.pause();
             scene.enterName((rivalName) => {
@@ -584,11 +567,14 @@ class OverworldScene extends Phaser.Scene {
         .message('Sam used a Library Card!')
         .message('Gotcha! Artificial Intelligence: A Modern Approach was caught!')
         .run(() => {
-            if (scene.samSprite) { scene.samSprite.destroy(); scene.samSprite = null; }
+            if (scene.samSprite) {
+                scene.samSprite.destroy();
+                scene.samSprite = null;
+            }
             scene.gameState.player.tileX = 11;
             scene.gameState.player.tileY = 26;
             scene.gameState.player.facing = 'left';
-            scene.player.setPosition(11 * TILE_SIZE + TILE_SIZE / 2, 26 * TILE_SIZE + TILE_SIZE / 2);
+            scene.player.setPosition(11 * TILE_SIZE + TILE_SIZE/2, 26 * TILE_SIZE + TILE_SIZE/2);
         })
         .wait(400)
         .run(() => {
@@ -598,10 +584,14 @@ class OverworldScene extends Phaser.Scene {
         })
         .wait(1200)
         .run(() => {
-            scene.rivalSprite = scene.add.sprite(14 * TILE_SIZE + TILE_SIZE / 2, 26 * TILE_SIZE + TILE_SIZE / 2, 'rival');
+            scene.rivalSprite = scene.add.sprite(
+                14 * TILE_SIZE + TILE_SIZE/2,
+                26 * TILE_SIZE + TILE_SIZE/2,
+                'rival'
+            );
             scene.rivalSprite.setOrigin(0.5).setDepth(2);
         })
-        .moveNpc(scene.rivalSprite, [{x:13,y:26},{x:12,y:26},{x:11,y:26}])
+        .moveNpc(scene.rivalSprite, [{x:13,y:26}, {x:12,y:26}, {x:11,y:26}])
         .message(`"Hey! I already have a special Bibliomon. I don\'t need those old things!"`, ['Who are you?'])
         .message(`"I\'m a fellow student, ${scene.gameState.rivalName || 'Friend'}! And this is my partner – The Creative Spark: Human Ingenuity!"`)
         .message('"A machine may learn, but true creativity is human. See you in the stacks!"')
@@ -625,11 +615,16 @@ class OverworldScene extends Phaser.Scene {
             scene.scene.launch('Battle', { battleType: 'trainer', opponent: rivalBook, trainer: scene.gameState.battle.trainer });
             scene.scene.pause();
 
-            if (scene.rivalSprite) { scene.rivalSprite.destroy(); scene.rivalSprite = null; }
+            if (scene.rivalSprite) {
+                scene.rivalSprite.destroy();
+                scene.rivalSprite = null;
+            }
             eq.done = true;
         });
 
-        eq.start();
+        eq.start(() => {
+            // The intro continues after the rival battle – handled by onRivalBattleEnd
+        });
     }
 
     onRivalBattleEnd() {

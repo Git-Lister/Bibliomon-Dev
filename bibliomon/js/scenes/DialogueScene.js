@@ -1,130 +1,258 @@
+// js/scenes/DialogueScene.js
+
 class DialogueScene extends Phaser.Scene {
     constructor() {
         super('Dialogue');
-    }
-
-    init(data) {
-        this.text       = data.text || '';
-        this.callback   = data.callback || null;   // normal finish callback
-        this.choices    = data.choices || null;     // e.g. ['Yes', 'No']
-        this.choiceCallback = data.choiceCallback || null;   // called with 'yes'/'no'
-        this.charIndex  = 0;
-        this.charDelay  = 40;
-        this.nextLine   = false;
-        this.selected   = 0;
+        this.isActive = false;
+        this.callback = null;
+        this.choiceCallback = null;
+        this.text = '';
+        this.speaker = '';
+        this.choices = null;
+        this.selectedChoice = 0;
         this.choiceTexts = [];
+        this.typewriterTimer = null;
+        this.fullText = '';
+        this.displayedText = '';
+        this.typingComplete = false;
+        this.container = null;
+        this.bg = null;
+        this.box = null;
+        this.dialogueText = null;
+        this.speakerText = null;
+        this.cursor = null;
+        this.choiceContainer = null;
     }
 
-    create() {
-        this.bg = this.add.rectangle(320, 240, 640, 480, 0x000000, 0.3).setOrigin(0.5);
+    create(data) {
+        // Store data
+        this.text = data.text || '';
+        this.speaker = data.speaker || '';
+        this.choices = data.choices || null;
+        this.callback = data.callback || null;
+        this.choiceCallback = data.choiceCallback || null;
+        this.selectedChoice = 0;
+        this.typingComplete = false;
 
-        const boxX = 20;
-        const boxW = 600;
-        const lineH = 20;            // height of one choice line
-        const baseH = 90;            // space for the message text + padding
-        const choicesCount = this.choices ? this.choices.length : 0;
-        const choicesH = choicesCount * lineH;
-        const boxH = baseH + choicesH + 20;
-        const boxY = 480 - boxH - 10;   // always at the bottom
-
-        // Outer border (white)
-        const outer = this.add.graphics();
-        outer.lineStyle(2, 0xffffff, 1);
-        outer.strokeRect(boxX, boxY, boxW, boxH);
-
-        // Inner border
-        const inner = this.add.graphics();
-        inner.lineStyle(1, 0x888888, 1);
-        inner.strokeRect(boxX + 4, boxY + 4, boxW - 8, boxH - 8);
-
-        // Fill
-        const fill = this.add.graphics();
-        fill.fillStyle(0x000000, 0.9);
-        fill.fillRect(boxX + 5, boxY + 5, boxW - 10, boxH - 10);
-
-        // Main dialogue text
-        this.dialogueText = this.add.text(boxX + 12, boxY + 12, '', {
-            fontFamily: 'monospace', fontSize: '12px', fill: '#ffffff',
-            wordWrap: { width: boxW - 24 }
-        });
-
-        this.cursor = this.add.text(boxX + boxW - 20, boxY + boxH - 20, '▼', {
-            fontFamily: 'monospace', fontSize: '12px', fill: '#ffffff'
-        }).setVisible(false);
-
-        // Choice texts (if any)
-        if (this.choices) {
-            this.choiceTexts = this.choices.map((c, i) => {
-                const txt = this.add.text(boxX + 20, boxY + 50 + i * lineH,
-                    (i === 0 ? '▶ ' : '  ') + c,
-                    { fontFamily: 'monospace', fontSize: '12px', fill: '#ffffff' });
-                txt.setVisible(false);
-                return txt;
-            });
+        // Pause the calling scene (assumed to be Overworld)
+        const callingScene = this.scene.get('Overworld');
+        if (callingScene && callingScene.scene.isActive()) {
+            callingScene.scene.pause();
         }
 
-        this.typeNextChar();
+        // Build UI
+        this.buildUI();
 
-        // Input handling (unchanged – keep your existing keyboard events)
-        this.input.keyboard.on('keydown-SPACE', () => this.onConfirm());
-        this.input.keyboard.on('keydown-ENTER', () => this.onConfirm());
-        this.input.keyboard.on('keydown-ESC',  () => this.onConfirm());
-        this.input.keyboard.on('keydown-UP',   () => this.changeChoice(-1));
-        this.input.keyboard.on('keydown-DOWN', () => this.changeChoice(1));
-        this.input.on('pointerdown', () => this.onConfirm());
+        // Start typewriter effect
+        this.startTyping();
+
+        // Set up input
+        this.input.on('pointerdown', this.handleClick, this);
+        this.input.keyboard.on('keydown', this.handleKey, this);
+
+        this.isActive = true;
     }
 
-    typeNextChar() {
-        if (this.charIndex < this.text.length) {
-            this.dialogueText.setText(this.text.substring(0, this.charIndex + 1));
-            this.charIndex++;
-            this.time.delayedCall(this.charDelay, () => this.typeNextChar());
-        } else {
-            this.cursor.setVisible(true);
-            this.tweens.add({
-                targets: this.cursor, alpha: 0, duration: 300, yoyo: true, repeat: -1
-            });
-            this.nextLine = true;
-            // Show choices if they exist
-            if (this.choices) {
-                this.choiceTexts.forEach(t => t.setVisible(true));
+    buildUI() {
+        const W = this.cameras.main.width;
+        const H = this.cameras.main.height;
+
+        // Dark overlay
+        this.bg = this.add.graphics();
+        this.bg.fillStyle(0x000000, 0.7);
+        this.bg.fillRect(0, 0, W, H);
+        this.bg.setDepth(100);
+
+        // Dialogue box
+        this.box = this.add.graphics();
+        this.box.fillStyle(0xffffff, 1);
+        const boxX = 40, boxY = H - 180;
+        const boxW = W - 80, boxH = 140;
+        this.box.fillRoundedRect(boxX, boxY, boxW, boxH, 10);
+        this.box.setDepth(101);
+
+        // Speaker name (if any)
+        let speakerY = boxY + 20;
+        if (this.speaker) {
+            this.speakerText = this.add.text(boxX + 20, speakerY, this.speaker, {
+                fontSize: '16px',
+                fill: '#333',
+                fontStyle: 'bold',
+                fontFamily: 'monospace'
+            }).setDepth(102);
+            speakerY += 30;
+        }
+
+        // Dialogue text (typewriter)
+        this.dialogueText = this.add.text(boxX + 20, speakerY, '', {
+            fontSize: '16px',
+            fill: '#333',
+            wordWrap: { width: boxW - 40 },
+            fontFamily: 'monospace'
+        }).setDepth(102);
+
+        // Choices container (initially hidden)
+        this.choiceContainer = this.add.container(boxX + 20, boxY + boxH - 50).setDepth(102);
+        this.choiceContainer.setVisible(false);
+        this.choiceTexts = [];
+
+        // Cursor indicator (blinking)
+        this.cursor = this.add.text(boxX + 20, speakerY, '|', {
+            fontSize: '16px',
+            fill: '#333',
+            fontFamily: 'monospace'
+        }).setDepth(102);
+        this.cursor.setVisible(false);
+    }
+
+    startTyping() {
+        this.fullText = this.text;
+        this.displayedText = '';
+        this.typingComplete = false;
+        this.dialogueText.setText('');
+        this.cursor.setVisible(true);
+
+        let index = 0;
+        const speed = 30; // ms per character
+
+        this.typewriterTimer = this.time.addEvent({
+            delay: speed,
+            callback: () => {
+                if (index < this.fullText.length) {
+                    this.displayedText += this.fullText[index];
+                    this.dialogueText.setText(this.displayedText);
+                    index++;
+                    // Update cursor position
+                    const bounds = this.dialogueText.getBounds();
+                    this.cursor.setPosition(bounds.right + 2, bounds.top);
+                } else {
+                    this.typingComplete = true;
+                    this.cursor.setVisible(false);
+                    if (this.typewriterTimer) {
+                        this.typewriterTimer.remove();
+                        this.typewriterTimer = null;
+                    }
+                    // Show choices if any
+                    if (this.choices && this.choices.length > 0) {
+                        this.showChoices();
+                    }
+                }
+            },
+            repeat: -1
+        });
+    }
+
+    showChoices() {
+        this.choiceContainer.setVisible(true);
+        this.choiceTexts = [];
+        this.choices.forEach((choice, index) => {
+            const text = this.add.text(0, index * 30, `${index+1}. ${choice}`, {
+                fontSize: '16px',
+                fill: '#333',
+                fontFamily: 'monospace'
+            }).setDepth(103);
+            text.setInteractive({ useHandCursor: true });
+            text.on('pointerdown', () => this.selectChoice(index));
+            this.choiceContainer.add(text);
+            this.choiceTexts.push(text);
+        });
+        this.highlightChoice(0);
+    }
+
+    highlightChoice(index) {
+        this.choiceTexts.forEach((t, i) => {
+            t.setFill(i === index ? '#ff0000' : '#333');
+        });
+        this.selectedChoice = index;
+    }
+
+    selectChoice(index) {
+        if (index < 0 || index >= this.choices.length) return;
+        const choiceText = this.choices[index];
+        if (this.choiceCallback) {
+            this.choiceCallback(choiceText);
+        }
+        this.closeDialogue();
+    }
+
+    handleClick(pointer) {
+        if (!this.isActive) return;
+        if (!this.typingComplete) {
+            this.skipTyping();
+            return;
+        }
+        // If choices are shown, clicking on a choice is handled by the choice text itself
+        if (!this.choices || this.choices.length === 0) {
+            this.closeDialogue();
+        }
+    }
+
+    handleKey(event) {
+        if (!this.isActive) return;
+        const key = event.key;
+
+        if (key === ' ' || key === 'Enter') {
+            if (!this.typingComplete) {
+                this.skipTyping();
+                return;
+            }
+            if (this.choices && this.choices.length > 0) {
+                this.selectChoice(this.selectedChoice);
+                return;
+            }
+            this.closeDialogue();
+        } else if (key === 'ArrowUp' && this.choices && this.choices.length > 0) {
+            this.selectedChoice = (this.selectedChoice - 1 + this.choices.length) % this.choices.length;
+            this.highlightChoice(this.selectedChoice);
+            event.preventDefault();
+        } else if (key === 'ArrowDown' && this.choices && this.choices.length > 0) {
+            this.selectedChoice = (this.selectedChoice + 1) % this.choices.length;
+            this.highlightChoice(this.selectedChoice);
+            event.preventDefault();
+        } else if (key.match(/^[1-9]$/) && this.choices && this.choices.length > 0) {
+            const num = parseInt(key) - 1;
+            if (num < this.choices.length) {
+                this.selectChoice(num);
             }
         }
     }
 
-    changeChoice(delta) {
-        if (!this.choices || !this.nextLine) return;
-        this.selected = (this.selected + delta + this.choices.length) % this.choices.length;
-        this.choiceTexts.forEach((t, i) => {
-            t.setText((i === this.selected ? '▶ ' : '  ') + this.choices[i]);
-        });
+    skipTyping() {
+        if (this.typewriterTimer) {
+            this.typewriterTimer.remove();
+            this.typewriterTimer = null;
+        }
+        this.displayedText = this.fullText;
+        this.dialogueText.setText(this.displayedText);
+        this.typingComplete = true;
+        this.cursor.setVisible(false);
+        if (this.choices && this.choices.length > 0) {
+            this.showChoices();
+        }
     }
 
-    onConfirm() {
-        if (!this.nextLine) {
-            // Skip typewriter
-            this.dialogueText.setText(this.text);
-            this.charIndex = this.text.length;
-            this.cursor.setVisible(true);
-            this.nextLine = true;
-            if (this.choices) this.choiceTexts.forEach(t => t.setVisible(true));
-            return;
+    closeDialogue() {
+        this.isActive = false;
+        // Clean up timer
+        if (this.typewriterTimer) {
+            this.typewriterTimer.remove();
+            this.typewriterTimer = null;
         }
-
-        // If a choice menu is active, execute the selected choice
-        if (this.choices && this.choiceCallback) {
-            const choice = this.choices[this.selected].toLowerCase();
-            this.scene.resume('Overworld');
-            this.scene.stop();
-            setTimeout(() => this.choiceCallback(choice), 0);
-            return;
-        }
-
-        // No choices – just close
-        this.scene.resume('Overworld');
-        this.scene.stop();
+        // Call callback
         if (this.callback) {
-            setTimeout(() => this.callback(), 0);
+            this.callback();
         }
+        // Resume the calling scene (Overworld)
+        const callingScene = this.scene.get('Overworld');
+        if (callingScene) {
+            callingScene.scene.resume();
+        }
+        // Stop this scene
+        this.scene.stop();
+    }
+
+    update() {
+        // Keep active flag true
+        this.isActive = true;
     }
 }
