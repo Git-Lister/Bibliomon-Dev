@@ -1,36 +1,29 @@
+// js/scenes/OverworldScene.js
 
-
-// ── Shop definitions (global so openShop can see them) ──────────────────────
+// ── Shop definitions ──────────────────────────────────────────────────────
 const SHOPS = {
-    vending: {
-        name: 'Vending Machine',
-        items: [
-            { itemId: 'potion', price: 10 },
-            { itemId: 'awakening', price: 15 },
-            { itemId: 'antidote', price: 15 }
-        ]
-    },
-    cafe: {
-        name: 'Library Café',
-        items: [
-            { itemId: 'super_potion', price: 25 },
-            { itemId: 'bookmark_item', price: 20 }
-        ]
-    }
+    vending: { name: 'Vending Machine', items: [ { itemId: 'potion', price: 10 }, { itemId: 'awakening', price: 15 }, { itemId: 'antidote', price: 15 } ] },
+    cafe: { name: 'Library Café', items: [ { itemId: 'super_potion', price: 25 }, { itemId: 'bookmark_item', price: 20 } ] }
 };
 const TILE_SIZE = 32;
+
+// ── Note: EventQueue is loaded from js/engine/EventQueue.js ─────────────
 
 class OverworldScene extends Phaser.Scene {
     constructor() {
         super('Overworld');
+        this.libraryAccountUI = null;  // Will be created in create()
     }
 
-    // ═══════════════════════════════════════════════════════════════════════
-    //  Scene Lifecycle
-    // ═══════════════════════════════════════════════════════════════════════
     create() {
+        console.log('OverworldScene.create() called'); // DEBUG
         this.cameras.main.setBackgroundColor('#1a1a1a');
         this.gameState = window.gameState;
+
+        // ── Create Library Account UI ──────────────────────────────────
+        // IMPORTANT: This creates the UI manager but doesn't show it
+        this.libraryAccountUI = new LibraryAccountUI(this);
+        console.log('LibraryAccountUI created'); // DEBUG
 
         // ── Entrance scanner ─────────────────────────────────────────────
         const p = this.gameState.player;
@@ -434,36 +427,58 @@ class OverworldScene extends Phaser.Scene {
             return;
         }
 
-        // ─── HELP DESK ───
-        if (tile === 'H') {
-            this.scene.launch('Dialogue', {
-                text: '"Hello! Welcome to the Library. Would you like me to check your books?"',
-                choices: ['Yes', 'No'],
-                choiceCallback: (choice) => {
-                    if (choice.toLowerCase() === 'yes') {
-                        this.gameState.backpack.forEach(b => b.currentHP = b.maxHP);
-                        this.time.delayedCall(400, () => {
-                            this.scene.launch('Dialogue', {
-                                text: 'All books have been restored. Opening your Library Account…',
-                                callback: () => {
+    // ─── HELP DESK (with Library Account) ───
+    if (tile === 'H') {
+        this.scene.launch('Dialogue', {
+            text: '"Hello! Welcome to the Library. Would you like me to check your books?"',
+            choices: ['Yes', 'No'],
+            choiceCallback: (choice) => {
+                if (choice.toLowerCase() === 'yes') {
+                    // Heal books
+                    this.gameState.backpack.forEach(b => b.currentHP = b.maxHP);
+                    this.time.delayedCall(400, () => {
+                        this.scene.launch('Dialogue', {
+                            text: 'All books have been restored. Opening your Library Account…',
+                            callback: () => {
+                                // Show the Library Account UI
+                                if (this.libraryAccountUI) {
+                                    this.libraryAccountUI.show();
+                                    this.scene.pause();
+                                } else {
+                                    // Fallback: use menu
                                     this.scene.launch('Menu', { mode: 'account' });
                                     this.scene.pause();
                                 }
-                            });
-                            this.scene.pause();
+                            }
                         });
-                    } else {
-                        this.scene.launch('Dialogue', {
-                            text: 'Come back anytime!',
-                            callback: () => {}
-                        });
-                        if (this.scene.isActive('Overworld')) this.scene.pause();
-                    }
+                        this.scene.pause();
+                    });
+                } else {
+                    this.scene.launch('Dialogue', {
+                        text: 'Come back anytime!',
+                        callback: () => {}
+                    });
+                    if (this.scene.isActive('Overworld')) this.scene.pause();
                 }
-            });
-            if (this.scene.isActive('Overworld')) this.scene.pause();
-            return;
-        }
+            }
+        });
+        if (this.scene.isActive('Overworld')) this.scene.pause();
+        return;
+    }
+
+    // ─── OPAC TERMINAL (Library Account) ───
+    if (tile === 'L') {
+        this.showMessage('Opening Library Account…', () => {
+            if (this.libraryAccountUI) {
+                this.libraryAccountUI.show();
+                this.scene.pause();
+            } else {
+                this.scene.launch('Menu', { mode: 'account' });
+                this.scene.pause();
+            }
+        });
+        return;
+    }
 
         // Staff
         if (tile === 'Z') { this.showMessage('"I\'m a Librarian, not a student – my training days are behind me!"'); return; }
@@ -503,12 +518,12 @@ class OverworldScene extends Phaser.Scene {
         if (this.scene.isActive('Overworld')) this.scene.pause();
     }
 
-    // ── Name Entry – launches the dedicated NameEntryScene (DOM‑based) ──
-    enterName(callback, promptText) {
+    // ── Name Entry – FIXED: uses 'step' instead of 'prompt' ──────────────
+    enterName(callback, step = 'player') {
         this.gameState.mode = 'naming';
         this.gameState.inputLocked = true;
         this.scene.launch('NameEntry', {
-            prompt: promptText,
+            step: step,        // 'player' or 'rival' – NameEntryScene uses this
             callback: (name) => {
                 this.gameState.mode = 'walk';
                 this.gameState.inputLocked = false;
@@ -519,7 +534,7 @@ class OverworldScene extends Phaser.Scene {
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
-    //  Intro Sequence – using EventQueue (original, working)
+    //  Intro Sequence – using EventQueue (from engine/EventQueue.js)
     // ═══════════════════════════════════════════════════════════════════════════
     startIntroSequence() {
         this.gameState.inputLocked = true;
@@ -552,7 +567,7 @@ class OverworldScene extends Phaser.Scene {
             scene.enterName((name) => {
                 scene.gameState.playerName = name;
                 eq.resume();
-            }, "What's your name?");
+            }, 'player');  // step: 'player'
         })
         .message(`"Ah yes, ${scene.gameState.playerName || 'you'}. And what should I call your fellow student?"`)
         .run(() => {
@@ -561,7 +576,7 @@ class OverworldScene extends Phaser.Scene {
                 scene.gameState.rivalName = rivalName;
                 saveGameData();
                 eq.resume();
-            }, "What's your fellow student's name?");
+            }, 'rival');   // step: 'rival'
         })
         .message('A wild Bibliomon appeared!')
         .message('Sam used a Library Card!')

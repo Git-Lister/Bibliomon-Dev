@@ -22,8 +22,8 @@ class EventQueue {
                 const target = tilePath[index];
                 this.scene.tweens.add({
                     targets: npc,
-                    x: target.x * 16 + 8,
-                    y: target.y * 16 + 8,
+                    x: target.x * 32 + 16,
+                    y: target.y * 32 + 16,
                     duration: stepDuration,
                     ease: 'Linear',
                     onComplete: () => {
